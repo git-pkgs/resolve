@@ -1,0 +1,2 @@
+{"type":"info","data":"Colours"}
+{"type":"tree","data":{"type":"list","trees":[{"name":"lodash@4.17.21","children":[]},{"name":"react@18.2.0","children":[{"name":"loose-envify@1.4.0","children":[{"name":"js-tokens@4.0.0","children":[]}]}]},{"name":"@types/node@20.10.0","children":[{"name":"undici-types@5.26.5","children":[]}]}]}}

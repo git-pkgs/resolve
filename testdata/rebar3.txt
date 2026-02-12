@@ -1,0 +1,5 @@
+my_project
+├─ cowboy─2.10.0 (hex package)
+│  ├─ cowlib─2.12.1 (hex package)
+│  └─ ranch─1.8.0 (hex package)
+└─ jsx─3.1.0 (hex package)

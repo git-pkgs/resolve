@@ -1,0 +1,6 @@
+ [org.clojure/clojure "1.11.1"]
+   [org.clojure/spec.alpha "0.3.218"]
+ [ring/ring-core "1.10.0"]
+   [ring/ring-codec "1.2.0"]
+   [commons-io "2.15.1"]
+ [compojure "1.7.1"]

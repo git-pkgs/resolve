@@ -1,0 +1,20 @@
+
+> Task :dependencies
+
+------------------------------------------------------------
+Root project 'my-project'
+------------------------------------------------------------
+
+compileClasspath - Compile classpath for source set 'main'.
++--- com.google.guava:guava:32.1.3-jre
+|    +--- com.google.guava:failureaccess:1.0.1
+|    \--- com.google.code.findbugs:jsr305:3.0.2
++--- org.apache.commons:commons-lang3:3.14.0
+\--- com.fasterxml.jackson.core:jackson-databind:2.16.0
+     +--- com.fasterxml.jackson.core:jackson-core:2.16.0
+     \--- com.fasterxml.jackson.core:jackson-annotations:2.16.0
+
+runtimeClasspath - Runtime classpath of source set 'main'.
++--- com.google.guava:guava:32.1.3-jre (*)
+\--- org.apache.commons:commons-lang3:3.14.0
+

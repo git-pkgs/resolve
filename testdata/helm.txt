@@ -1,0 +1,4 @@
+NAME        	VERSION	REPOSITORY                         	STATUS
+postgresql  	12.1.9 	https://charts.bitnami.com/bitnami 	ok
+redis       	18.4.0 	https://charts.bitnami.com/bitnami 	ok
+nginx       	15.4.3 	https://charts.bitnami.com/bitnami 	ok

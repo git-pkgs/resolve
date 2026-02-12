@@ -1,0 +1,5 @@
+my-project v0.1.0
+├── requests v2.31.0
+│   ├── certifi v2024.12.14
+│   └── urllib3 v2.1.0
+└── flask v3.0.0

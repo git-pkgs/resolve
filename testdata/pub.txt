@@ -1,0 +1,14 @@
+Dart SDK 3.2.3
+Flutter SDK 3.16.5
+my_project 1.0.0
+
+dependencies:
+├── http 1.1.2
+│   ├── async 2.11.0
+│   └── http_parser 4.0.2
+├── provider 6.1.1
+└── path 1.8.3
+
+dev dependencies:
+├── test 1.24.9
+└── lints 3.0.0

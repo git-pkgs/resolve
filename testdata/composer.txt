@@ -1,0 +1,9 @@
+laravel/framework v10.38.1 The Laravel Framework.
+├── doctrine/inflector 2.0.8 PHP Doctrine Inflector
+├── guzzlehttp/guzzle 7.8.1 Guzzle is a PHP HTTP client
+│   ├── guzzlehttp/promises 2.0.2
+│   └── guzzlehttp/psr7 2.6.2
+└── symfony/console v6.4.1 Eases the creation of command line interfaces
+monolog/monolog 3.5.0 Sends your logs to files, sockets, inboxes, databases and various web services
+├── psr/log 3.0.0
+└── monolog/handler 1.0.0

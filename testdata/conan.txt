@@ -1,0 +1,9 @@
+conanfile.txt
+boost/1.83.0
+    ID: abc123
+    Requires: zlib/1.3
+zlib/1.3
+    ID: def456
+openssl/3.2.0
+    ID: ghi789
+    Requires: zlib/1.3

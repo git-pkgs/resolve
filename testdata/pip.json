@@ -1,0 +1,24 @@
+{
+  "version": "1",
+  "pip_version": "23.3.1",
+  "installed": [
+    {
+      "metadata": {
+        "name": "requests",
+        "version": "2.31.0"
+      }
+    },
+    {
+      "metadata": {
+        "name": "certifi",
+        "version": "2024.12.14"
+      }
+    },
+    {
+      "metadata": {
+        "name": "urllib3",
+        "version": "2.1.0"
+      }
+    }
+  ]
+}

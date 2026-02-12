@@ -1,0 +1,22 @@
+{
+  "roots": ["file:///home/user/project/main.ts"],
+  "modules": [
+    {
+      "specifier": "file:///home/user/project/main.ts",
+      "dependencies": [
+        {
+          "specifier": "npm:express@4.18.2",
+          "code": {"specifier": "npm:express@4.18.2"}
+        }
+      ]
+    },
+    {
+      "specifier": "npm:express@4.18.2",
+      "dependencies": []
+    },
+    {
+      "specifier": "https://deno.land/std@0.200.0/path/mod.ts",
+      "dependencies": []
+    }
+  ]
+}

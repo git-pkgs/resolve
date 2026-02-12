@@ -1,0 +1,5 @@
+[
+  {"name": "numpy", "version": "1.26.2", "channel": "defaults"},
+  {"name": "python", "version": "3.11.7", "channel": "defaults"},
+  {"name": "scipy", "version": "1.11.4", "channel": "defaults"}
+]
