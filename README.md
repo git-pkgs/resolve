@@ -7,7 +7,10 @@ Takes the output bytes from a manager's resolve command (e.g. `npm ls --json`, `
 ## Usage
 
 ```go
-import "github.com/git-pkgs/resolve"
+import (
+	"github.com/git-pkgs/resolve"
+	_ "github.com/git-pkgs/resolve/parsers" // register all parsers
+)
 
 output, _ := exec.Command("npm", "ls", "--depth", "Infinity", "--json", "--long").Output()
 

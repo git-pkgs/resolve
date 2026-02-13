@@ -1,13 +1,15 @@
-package resolve
+package parsers
 
 import (
 	"strings"
+
+	"github.com/git-pkgs/resolve"
 )
 
 // parseBun parses output from `bun pm ls --all`.
 // Tree output with box-drawing, similar to npm text output.
 // Format: name@version
-func parseBun(data []byte) ([]*Dep, error) {
+func parseBun(data []byte) ([]*resolve.Dep, error) {
 	lines := strings.Split(string(data), "\n")
 
 	// Skip the root line (first non-empty line is the project)
@@ -23,10 +25,10 @@ func parseBun(data []byte) ([]*Dep, error) {
 		}
 	}
 
-	opts := BoxDrawingOptions()
-	treeLines := ParseTreeLines(lines[startIdx:], opts)
+	opts := resolve.BoxDrawingOptions()
+	treeLines := resolve.ParseTreeLines(lines[startIdx:], opts)
 
-	return buildTree(treeLines, "npm", func(content string) (string, string, bool) {
+	return resolve.BuildTree(treeLines, "npm", func(content string) (string, string, bool) {
 		// Format: name@version or @scope/name@version
 		name, version := parseAtVersion(content)
 		if name == "" {
@@ -48,4 +50,8 @@ func parseAtVersion(s string) (string, string) {
 		return s, ""
 	}
 	return s[:idx], s[idx+1:]
+}
+
+func init() {
+	resolve.Register("bun", "npm", parseBun)
 }

@@ -1,4 +1,4 @@
-package resolve
+package resolve_test
 
 import (
 	"errors"
@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/git-pkgs/resolve"
+	_ "github.com/git-pkgs/resolve/parsers"
 )
 
 func loadFixture(t *testing.T, name string) []byte {
@@ -17,7 +20,7 @@ func loadFixture(t *testing.T, name string) []byte {
 	return data
 }
 
-func findDep(deps []*Dep, name string) *Dep {
+func findDep(deps []*resolve.Dep, name string) *resolve.Dep {
 	for _, d := range deps {
 		if d.Name == name {
 			return d
@@ -27,14 +30,14 @@ func findDep(deps []*Dep, name string) *Dep {
 }
 
 func TestParseUnsupportedManager(t *testing.T) {
-	_, err := Parse("unknown-manager", []byte("{}"))
-	if !errors.Is(err, ErrUnsupportedManager) {
+	_, err := resolve.Parse("unknown-manager", []byte("{}"))
+	if !errors.Is(err, resolve.ErrUnsupportedManager) {
 		t.Errorf("expected ErrUnsupportedManager, got %v", err)
 	}
 }
 
 func TestParseReturnsManagerAndEcosystem(t *testing.T) {
-	result, err := Parse("pip", loadFixture(t, "pip.json"))
+	result, err := resolve.Parse("pip", loadFixture(t, "pip.json"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -47,7 +50,7 @@ func TestParseReturnsManagerAndEcosystem(t *testing.T) {
 }
 
 func TestNPM(t *testing.T) {
-	result, err := Parse("npm", loadFixture(t, "npm.json"))
+	result, err := resolve.Parse("npm", loadFixture(t, "npm.json"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -88,7 +91,7 @@ func TestNPM(t *testing.T) {
 }
 
 func TestPNPM(t *testing.T) {
-	result, err := Parse("pnpm", loadFixture(t, "pnpm.json"))
+	result, err := resolve.Parse("pnpm", loadFixture(t, "pnpm.json"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -109,7 +112,7 @@ func TestPNPM(t *testing.T) {
 }
 
 func TestYarn(t *testing.T) {
-	result, err := Parse("yarn", loadFixture(t, "yarn.json"))
+	result, err := resolve.Parse("yarn", loadFixture(t, "yarn.json"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -138,7 +141,7 @@ func TestYarn(t *testing.T) {
 }
 
 func TestBun(t *testing.T) {
-	result, err := Parse("bun", loadFixture(t, "bun.txt"))
+	result, err := resolve.Parse("bun", loadFixture(t, "bun.txt"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -158,7 +161,7 @@ func TestBun(t *testing.T) {
 }
 
 func TestCargo(t *testing.T) {
-	result, err := Parse("cargo", loadFixture(t, "cargo.json"))
+	result, err := resolve.Parse("cargo", loadFixture(t, "cargo.json"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -182,7 +185,7 @@ func TestCargo(t *testing.T) {
 }
 
 func TestGomod(t *testing.T) {
-	result, err := Parse("gomod", loadFixture(t, "gomod.txt"))
+	result, err := resolve.Parse("gomod", loadFixture(t, "gomod.txt"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -215,7 +218,7 @@ func TestGomod(t *testing.T) {
 }
 
 func TestPip(t *testing.T) {
-	result, err := Parse("pip", loadFixture(t, "pip.json"))
+	result, err := resolve.Parse("pip", loadFixture(t, "pip.json"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -236,7 +239,7 @@ func TestPip(t *testing.T) {
 }
 
 func TestConda(t *testing.T) {
-	result, err := Parse("conda", loadFixture(t, "conda.json"))
+	result, err := resolve.Parse("conda", loadFixture(t, "conda.json"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -253,7 +256,7 @@ func TestConda(t *testing.T) {
 }
 
 func TestStack(t *testing.T) {
-	result, err := Parse("stack", loadFixture(t, "stack.json"))
+	result, err := resolve.Parse("stack", loadFixture(t, "stack.json"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -273,7 +276,7 @@ func TestStack(t *testing.T) {
 }
 
 func TestDeno(t *testing.T) {
-	result, err := Parse("deno", loadFixture(t, "deno.json"))
+	result, err := resolve.Parse("deno", loadFixture(t, "deno.json"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -290,7 +293,7 @@ func TestDeno(t *testing.T) {
 }
 
 func TestSwift(t *testing.T) {
-	result, err := Parse("swift", loadFixture(t, "swift.json"))
+	result, err := resolve.Parse("swift", loadFixture(t, "swift.json"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -310,7 +313,7 @@ func TestSwift(t *testing.T) {
 }
 
 func TestUV(t *testing.T) {
-	result, err := Parse("uv", loadFixture(t, "uv.txt"))
+	result, err := resolve.Parse("uv", loadFixture(t, "uv.txt"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -340,7 +343,7 @@ func TestUV(t *testing.T) {
 }
 
 func TestPoetry(t *testing.T) {
-	result, err := Parse("poetry", loadFixture(t, "poetry.txt"))
+	result, err := resolve.Parse("poetry", loadFixture(t, "poetry.txt"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -369,7 +372,7 @@ func TestPoetry(t *testing.T) {
 }
 
 func TestBundler(t *testing.T) {
-	result, err := Parse("bundler", loadFixture(t, "bundler.txt"))
+	result, err := resolve.Parse("bundler", loadFixture(t, "bundler.txt"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -395,7 +398,7 @@ func TestBundler(t *testing.T) {
 }
 
 func TestMaven(t *testing.T) {
-	result, err := Parse("maven", loadFixture(t, "maven.txt"))
+	result, err := resolve.Parse("maven", loadFixture(t, "maven.txt"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -426,7 +429,7 @@ func TestMaven(t *testing.T) {
 }
 
 func TestGradle(t *testing.T) {
-	result, err := Parse("gradle", loadFixture(t, "gradle.txt"))
+	result, err := resolve.Parse("gradle", loadFixture(t, "gradle.txt"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -454,7 +457,7 @@ func TestGradle(t *testing.T) {
 }
 
 func TestComposer(t *testing.T) {
-	result, err := Parse("composer", loadFixture(t, "composer.txt"))
+	result, err := resolve.Parse("composer", loadFixture(t, "composer.txt"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -485,7 +488,7 @@ func TestComposer(t *testing.T) {
 }
 
 func TestNuget(t *testing.T) {
-	result, err := Parse("nuget", loadFixture(t, "nuget.txt"))
+	result, err := resolve.Parse("nuget", loadFixture(t, "nuget.txt"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -506,7 +509,7 @@ func TestNuget(t *testing.T) {
 }
 
 func TestPub(t *testing.T) {
-	result, err := Parse("pub", loadFixture(t, "pub.txt"))
+	result, err := resolve.Parse("pub", loadFixture(t, "pub.txt"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -526,7 +529,7 @@ func TestPub(t *testing.T) {
 }
 
 func TestMix(t *testing.T) {
-	result, err := Parse("mix", loadFixture(t, "mix.txt"))
+	result, err := resolve.Parse("mix", loadFixture(t, "mix.txt"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -549,7 +552,7 @@ func TestMix(t *testing.T) {
 }
 
 func TestRebar3(t *testing.T) {
-	result, err := Parse("rebar3", loadFixture(t, "rebar3.txt"))
+	result, err := resolve.Parse("rebar3", loadFixture(t, "rebar3.txt"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -572,7 +575,7 @@ func TestRebar3(t *testing.T) {
 }
 
 func TestLein(t *testing.T) {
-	result, err := Parse("lein", loadFixture(t, "lein.txt"))
+	result, err := resolve.Parse("lein", loadFixture(t, "lein.txt"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -596,7 +599,7 @@ func TestLein(t *testing.T) {
 }
 
 func TestConan(t *testing.T) {
-	result, err := Parse("conan", loadFixture(t, "conan.txt"))
+	result, err := resolve.Parse("conan", loadFixture(t, "conan.txt"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -617,7 +620,7 @@ func TestConan(t *testing.T) {
 }
 
 func TestHelm(t *testing.T) {
-	result, err := Parse("helm", loadFixture(t, "helm.txt"))
+	result, err := resolve.Parse("helm", loadFixture(t, "helm.txt"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -637,7 +640,7 @@ func TestHelm(t *testing.T) {
 }
 
 func TestParseEmptyInput(t *testing.T) {
-	_, err := Parse("npm", []byte(""))
+	_, err := resolve.Parse("npm", []byte(""))
 	if err == nil {
 		t.Error("expected error for empty input")
 	}

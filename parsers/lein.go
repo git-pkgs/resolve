@@ -1,8 +1,10 @@
-package resolve
+package parsers
 
 import (
 	"regexp"
 	"strings"
+
+	"github.com/git-pkgs/resolve"
 )
 
 // leinPkgRe matches "[group/name \"version\"]" or "[name \"version\"]".
@@ -10,9 +12,9 @@ var leinPkgRe = regexp.MustCompile(`\[(\S+)\s+"([^"]+)"\]`)
 
 // parseLein parses output from `lein deps :tree`.
 // Bracket-indented format: [group/name "version"] with increasing space indentation.
-func parseLein(data []byte) ([]*Dep, error) {
+func parseLein(data []byte) ([]*resolve.Dep, error) {
 	lines := strings.Split(string(data), "\n")
-	var treeLines []TreeLine
+	var treeLines []resolve.TreeLine
 
 	for _, line := range lines {
 		if strings.TrimSpace(line) == "" {
@@ -38,14 +40,18 @@ func parseLein(data []byte) ([]*Dep, error) {
 		name := m[1]
 		version := m[2]
 
-		treeLines = append(treeLines, TreeLine{Depth: depth, Content: name + "\t" + version})
+		treeLines = append(treeLines, resolve.TreeLine{Depth: depth, Content: name + "\t" + version})
 	}
 
-	return buildTree(treeLines, "clojars", func(content string) (string, string, bool) {
+	return resolve.BuildTree(treeLines, "clojars", func(content string) (string, string, bool) {
 		parts := strings.SplitN(content, "\t", 2)
 		if len(parts) != 2 {
 			return "", "", false
 		}
 		return parts[0], parts[1], true
 	}), nil
+}
+
+func init() {
+	resolve.Register("lein", "clojars", parseLein)
 }

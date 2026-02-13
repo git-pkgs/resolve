@@ -1,8 +1,10 @@
-package resolve
+package parsers
 
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/git-pkgs/resolve"
 )
 
 // npmPackage represents a package in npm/pnpm JSON output.
@@ -13,7 +15,7 @@ type npmPackage struct {
 }
 
 // parseNPM parses output from `npm ls --depth Infinity --json --long`.
-func parseNPM(data []byte) ([]*Dep, error) {
+func parseNPM(data []byte) ([]*resolve.Dep, error) {
 	var root npmPackage
 	if err := json.Unmarshal(data, &root); err != nil {
 		return nil, fmt.Errorf("parsing npm output: %w", err)
@@ -23,12 +25,12 @@ func parseNPM(data []byte) ([]*Dep, error) {
 
 // parsePNPM parses output from `pnpm list --json --depth Infinity`.
 // PNPM returns a JSON array of workspace entries.
-func parsePNPM(data []byte) ([]*Dep, error) {
+func parsePNPM(data []byte) ([]*resolve.Dep, error) {
 	var entries []npmPackage
 	if err := json.Unmarshal(data, &entries); err != nil {
 		return nil, fmt.Errorf("parsing pnpm output: %w", err)
 	}
-	var deps []*Dep
+	var deps []*resolve.Dep
 	for _, entry := range entries {
 		deps = append(deps, walkNPMDeps(entry.Dependencies, "npm")...)
 		deps = append(deps, walkNPMDeps(entry.DevDependencies, "npm")...)
@@ -36,14 +38,14 @@ func parsePNPM(data []byte) ([]*Dep, error) {
 	return deps, nil
 }
 
-func walkNPMDeps(deps map[string]npmPackage, ecosystem string) []*Dep {
-	var result []*Dep
+func walkNPMDeps(deps map[string]npmPackage, ecosystem string) []*resolve.Dep {
+	var result []*resolve.Dep
 	for name, pkg := range deps {
-		dep := &Dep{
-			PURL:    makePURL(ecosystem, name, pkg.Version),
+		dep := &resolve.Dep{
+			PURL:    resolve.MakePURL(ecosystem, name, pkg.Version),
 			Name:    name,
 			Version: pkg.Version,
-			Deps:    []*Dep{},
+			Deps:    []*resolve.Dep{},
 		}
 		if len(pkg.Dependencies) > 0 {
 			dep.Deps = walkNPMDeps(pkg.Dependencies, ecosystem)
@@ -51,4 +53,9 @@ func walkNPMDeps(deps map[string]npmPackage, ecosystem string) []*Dep {
 		result = append(result, dep)
 	}
 	return result
+}
+
+func init() {
+	resolve.Register("npm", "npm", parseNPM)
+	resolve.Register("pnpm", "npm", parsePNPM)
 }

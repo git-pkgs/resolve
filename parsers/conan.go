@@ -1,10 +1,12 @@
-package resolve
+package parsers
 
 import (
 	"bufio"
 	"bytes"
 	"regexp"
 	"strings"
+
+	"github.com/git-pkgs/resolve"
 )
 
 // conanRefRe matches package reference lines like "name/version" or "name/version@user/channel".
@@ -12,8 +14,8 @@ var conanRefRe = regexp.MustCompile(`^(\S+)/(\S+?)(?:@|$)`)
 
 // parseConan parses output from `conan info .`.
 // Multi-line blocks per package, each starting with a package reference line.
-func parseConan(data []byte) ([]*Dep, error) {
-	var deps []*Dep
+func parseConan(data []byte) ([]*resolve.Dep, error) {
+	var deps []*resolve.Dep
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 
 	for scanner.Scan() {
@@ -37,11 +39,15 @@ func parseConan(data []byte) ([]*Dep, error) {
 		}
 		name := m[1]
 		version := m[2]
-		deps = append(deps, &Dep{
-			PURL:    makePURL("conan", name, version),
+		deps = append(deps, &resolve.Dep{
+			PURL:    resolve.MakePURL("conan", name, version),
 			Name:    name,
 			Version: version,
 		})
 	}
 	return deps, nil
+}
+
+func init() {
+	resolve.Register("conan", "conan", parseConan)
 }

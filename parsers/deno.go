@@ -1,13 +1,15 @@
-package resolve
+package parsers
 
 import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/git-pkgs/resolve"
 )
 
 // parseDeno parses output from `deno info --json`.
-func parseDeno(data []byte) ([]*Dep, error) {
+func parseDeno(data []byte) ([]*resolve.Dep, error) {
 	var output struct {
 		Modules []struct {
 			Specifier    string `json:"specifier"`
@@ -26,15 +28,15 @@ func parseDeno(data []byte) ([]*Dep, error) {
 
 	// Collect unique packages
 	seen := make(map[string]bool)
-	var deps []*Dep
+	var deps []*resolve.Dep
 	for _, mod := range output.Modules {
 		name, version := parseDenoSpecifier(mod.Specifier)
 		if name == "" || seen[name+"@"+version] {
 			continue
 		}
 		seen[name+"@"+version] = true
-		deps = append(deps, &Dep{
-			PURL:    makePURL("deno", name, version),
+		deps = append(deps, &resolve.Dep{
+			PURL:    resolve.MakePURL("deno", name, version),
 			Name:    name,
 			Version: version,
 		})
@@ -82,4 +84,8 @@ func parseDenoSpecifier(spec string) (string, string) {
 	}
 
 	return "", ""
+}
+
+func init() {
+	resolve.Register("deno", "deno", parseDeno)
 }

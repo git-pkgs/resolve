@@ -1,13 +1,15 @@
-package resolve
+package parsers
 
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/git-pkgs/resolve"
 )
 
 // parsePip parses output from `pip inspect`.
 // Format: {"installed": [{"metadata": {"name": "...", "version": "..."}}, ...]}
-func parsePip(data []byte) ([]*Dep, error) {
+func parsePip(data []byte) ([]*resolve.Dep, error) {
 	var output struct {
 		Installed []struct {
 			Metadata struct {
@@ -20,15 +22,15 @@ func parsePip(data []byte) ([]*Dep, error) {
 		return nil, fmt.Errorf("parsing pip output: %w", err)
 	}
 
-	var deps []*Dep
+	var deps []*resolve.Dep
 	for _, pkg := range output.Installed {
 		name := pkg.Metadata.Name
 		version := pkg.Metadata.Version
 		if name == "" {
 			continue
 		}
-		deps = append(deps, &Dep{
-			PURL:    makePURL("pypi", name, version),
+		deps = append(deps, &resolve.Dep{
+			PURL:    resolve.MakePURL("pypi", name, version),
 			Name:    name,
 			Version: version,
 		})
@@ -38,7 +40,7 @@ func parsePip(data []byte) ([]*Dep, error) {
 
 // parseConda parses output from `conda list --json`.
 // Format: [{"name": "...", "version": "..."}, ...]
-func parseConda(data []byte) ([]*Dep, error) {
+func parseConda(data []byte) ([]*resolve.Dep, error) {
 	var packages []struct {
 		Name    string `json:"name"`
 		Version string `json:"version"`
@@ -47,13 +49,13 @@ func parseConda(data []byte) ([]*Dep, error) {
 		return nil, fmt.Errorf("parsing conda output: %w", err)
 	}
 
-	var deps []*Dep
+	var deps []*resolve.Dep
 	for _, pkg := range packages {
 		if pkg.Name == "" {
 			continue
 		}
-		deps = append(deps, &Dep{
-			PURL:    makePURL("conda", pkg.Name, pkg.Version),
+		deps = append(deps, &resolve.Dep{
+			PURL:    resolve.MakePURL("conda", pkg.Name, pkg.Version),
 			Name:    pkg.Name,
 			Version: pkg.Version,
 		})
@@ -63,7 +65,7 @@ func parseConda(data []byte) ([]*Dep, error) {
 
 // parseStack parses output from `stack ls dependencies json`.
 // Format: [{"name": "...", "version": "..."}, ...]
-func parseStack(data []byte) ([]*Dep, error) {
+func parseStack(data []byte) ([]*resolve.Dep, error) {
 	var packages []struct {
 		Name    string `json:"name"`
 		Version string `json:"version"`
@@ -72,16 +74,22 @@ func parseStack(data []byte) ([]*Dep, error) {
 		return nil, fmt.Errorf("parsing stack output: %w", err)
 	}
 
-	var deps []*Dep
+	var deps []*resolve.Dep
 	for _, pkg := range packages {
 		if pkg.Name == "" {
 			continue
 		}
-		deps = append(deps, &Dep{
-			PURL:    makePURL("hackage", pkg.Name, pkg.Version),
+		deps = append(deps, &resolve.Dep{
+			PURL:    resolve.MakePURL("hackage", pkg.Name, pkg.Version),
 			Name:    pkg.Name,
 			Version: pkg.Version,
 		})
 	}
 	return deps, nil
+}
+
+func init() {
+	resolve.Register("pip", "pypi", parsePip)
+	resolve.Register("conda", "conda", parseConda)
+	resolve.Register("stack", "hackage", parseStack)
 }

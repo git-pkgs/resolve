@@ -67,10 +67,10 @@ func ParseTreeLines(lines []string, opts TreeOptions) []TreeLine {
 	return result
 }
 
-// buildTree takes tree lines and a content-parser function, and builds a []*Dep tree.
+// BuildTree takes tree lines and a content-parser function, and builds a []*Dep tree.
 // The contentParser receives the content string and returns (name, version, deps-placeholder).
 // Deps is set to non-nil empty slice to indicate tree structure is available.
-func buildTree(lines []TreeLine, ecosystem string, contentParser func(string) (string, string, bool)) []*Dep {
+func BuildTree(lines []TreeLine, ecosystem string, contentParser func(string) (string, string, bool)) []*Dep {
 	if len(lines) == 0 {
 		return nil
 	}
@@ -90,7 +90,7 @@ func buildTree(lines []TreeLine, ecosystem string, contentParser func(string) (s
 		}
 
 		dep := &Dep{
-			PURL:    makePURL(ecosystem, name, version),
+			PURL:    MakePURL(ecosystem, name, version),
 			Name:    name,
 			Version: version,
 			Deps:    []*Dep{}, // non-nil to indicate tree structure

@@ -1,16 +1,18 @@
-package resolve
+package parsers
 
 import (
 	"bufio"
 	"bytes"
 	"strings"
+
+	"github.com/git-pkgs/resolve"
 )
 
 // parseMaven parses output from `mvn dependency:tree`.
 // Lines prefixed with [INFO] then tree markers (+- | \-).
 // Package format: group:artifact:type:version:scope
-func parseMaven(data []byte) ([]*Dep, error) {
-	var treeLines []TreeLine
+func parseMaven(data []byte) ([]*resolve.Dep, error) {
+	var treeLines []resolve.TreeLine
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 
 	for scanner.Scan() {
@@ -69,14 +71,18 @@ func parseMaven(data []byte) ([]*Dep, error) {
 		version := parts[3]
 		name := group + ":" + artifact
 
-		treeLines = append(treeLines, TreeLine{Depth: depth, Content: name + "\t" + version})
+		treeLines = append(treeLines, resolve.TreeLine{Depth: depth, Content: name + "\t" + version})
 	}
 
-	return buildTree(treeLines, "maven", func(content string) (string, string, bool) {
+	return resolve.BuildTree(treeLines, "maven", func(content string) (string, string, bool) {
 		parts := strings.SplitN(content, "\t", 2)
 		if len(parts) != 2 {
 			return "", "", false
 		}
 		return parts[0], parts[1], true
 	}), nil
+}
+
+func init() {
+	resolve.Register("maven", "maven", parseMaven)
 }

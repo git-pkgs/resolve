@@ -1,20 +1,22 @@
-package resolve
+package parsers
 
 import (
 	"regexp"
 	"strings"
+
+	"github.com/git-pkgs/resolve"
 )
 
 // mixPkgRe matches "name version" or "name ~> constraint (Hex package)" patterns.
 var mixPkgRe = regexp.MustCompile(`^(\S+)\s+(\S+)`)
 
 // parseMix parses output from `mix deps.tree`.
-func parseMix(data []byte) ([]*Dep, error) {
+func parseMix(data []byte) ([]*resolve.Dep, error) {
 	lines := strings.Split(string(data), "\n")
-	opts := BoxDrawingOptions()
-	treeLines := ParseTreeLines(lines, opts)
+	opts := resolve.BoxDrawingOptions()
+	treeLines := resolve.ParseTreeLines(lines, opts)
 
-	return buildTree(treeLines, "hex", func(content string) (string, string, bool) {
+	return resolve.BuildTree(treeLines, "hex", func(content string) (string, string, bool) {
 		m := mixPkgRe.FindStringSubmatch(content)
 		if m == nil {
 			return "", "", false
@@ -29,4 +31,8 @@ func parseMix(data []byte) ([]*Dep, error) {
 		// Remove trailing parenthetical like "(Hex package)"
 		return name, version, true
 	}), nil
+}
+
+func init() {
+	resolve.Register("mix", "hex", parseMix)
 }

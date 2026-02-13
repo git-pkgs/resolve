@@ -25,60 +25,13 @@ type Result struct {
 	Direct    []*Dep // top-level dependencies
 }
 
-// managerEcosystem maps manager names to their ecosystem.
-var managerEcosystem = map[string]string{
-	"npm":      "npm",
-	"pnpm":     "npm",
-	"yarn":     "npm",
-	"bun":      "npm",
-	"cargo":    "cargo",
-	"gomod":    "golang",
-	"pip":      "pypi",
-	"uv":       "pypi",
-	"poetry":   "pypi",
-	"conda":    "conda",
-	"bundler":  "gem",
-	"maven":    "maven",
-	"gradle":   "maven",
-	"composer": "packagist",
-	"nuget":    "nuget",
-	"swift":    "swift",
-	"pub":      "pub",
-	"mix":      "hex",
-	"rebar3":   "hex",
-	"stack":    "hackage",
-	"lein":     "clojars",
-	"conan":    "conan",
-	"deno":     "deno",
-	"helm":     "helm",
-}
+var managerEcosystem = map[string]string{}
+var parsers = map[string]func([]byte) ([]*Dep, error){}
 
-// parsers maps manager names to their parse function.
-var parsers = map[string]func([]byte) ([]*Dep, error){
-	"npm":      parseNPM,
-	"pnpm":     parsePNPM,
-	"yarn":     parseYarn,
-	"bun":      parseBun,
-	"cargo":    parseCargo,
-	"gomod":    parseGomod,
-	"pip":      parsePip,
-	"uv":       parseUV,
-	"poetry":   parsePoetry,
-	"conda":    parseConda,
-	"bundler":  parseBundler,
-	"maven":    parseMaven,
-	"gradle":   parseGradle,
-	"composer": parseComposer,
-	"nuget":    parseNuget,
-	"swift":    parseSwift,
-	"pub":      parsePub,
-	"mix":      parseMix,
-	"rebar3":   parseRebar3,
-	"stack":    parseStack,
-	"lein":     parseLein,
-	"conan":    parseConan,
-	"deno":     parseDeno,
-	"helm":     parseHelm,
+// Register adds a parser for a manager. Called from parser init() functions.
+func Register(manager, ecosystem string, fn func([]byte) ([]*Dep, error)) {
+	managerEcosystem[manager] = ecosystem
+	parsers[manager] = fn
 }
 
 // Parse dispatches to the per-manager parser and returns the dependency graph.
@@ -105,7 +58,7 @@ func Parse(manager string, output []byte) (*Result, error) {
 	}, nil
 }
 
-// makePURL constructs a PURL string for a dependency.
-func makePURL(ecosystem, name, version string) string {
+// MakePURL constructs a PURL string for a dependency.
+func MakePURL(ecosystem, name, version string) string {
 	return purl.MakePURL(ecosystem, name, version).String()
 }

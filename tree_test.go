@@ -77,7 +77,7 @@ func TestBuildTree(t *testing.T) {
 		{Depth: 0, Content: "d 4.0"},
 	}
 
-	deps := buildTree(lines, "npm", func(content string) (string, string, bool) {
+	deps := BuildTree(lines, "npm", func(content string) (string, string, bool) {
 		parts := splitFields(content)
 		if len(parts) < 2 {
 			return "", "", false

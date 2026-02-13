@@ -1,15 +1,17 @@
-package resolve
+package parsers
 
 import (
 	"bufio"
 	"bytes"
 	"strings"
+
+	"github.com/git-pkgs/resolve"
 )
 
 // parseGomod parses output from `go mod graph`.
 // Format: one edge per line, space-separated: "parent@version dep@version"
 // Root module has no @version suffix.
-func parseGomod(data []byte) ([]*Dep, error) {
+func parseGomod(data []byte) ([]*resolve.Dep, error) {
 	type edge struct {
 		from, to string
 	}
@@ -50,14 +52,14 @@ func parseGomod(data []byte) ([]*Dep, error) {
 
 	// Build tree from root's direct children
 	seen := make(map[string]bool)
-	var buildDeps func(mod string) *Dep
-	buildDeps = func(mod string) *Dep {
+	var buildDeps func(mod string) *resolve.Dep
+	buildDeps = func(mod string) *resolve.Dep {
 		name, version := splitModVersion(mod)
-		dep := &Dep{
-			PURL:    makePURL("golang", name, version),
+		dep := &resolve.Dep{
+			PURL:    resolve.MakePURL("golang", name, version),
 			Name:    name,
 			Version: version,
-			Deps:    []*Dep{},
+			Deps:    []*resolve.Dep{},
 		}
 		if seen[mod] {
 			return dep
@@ -69,7 +71,7 @@ func parseGomod(data []byte) ([]*Dep, error) {
 		return dep
 	}
 
-	var deps []*Dep
+	var deps []*resolve.Dep
 	for _, child := range children[root] {
 		deps = append(deps, buildDeps(child))
 	}
@@ -81,4 +83,8 @@ func splitModVersion(s string) (string, string) {
 		return s[:idx], s[idx+1:]
 	}
 	return s, ""
+}
+
+func init() {
+	resolve.Register("gomod", "golang", parseGomod)
 }

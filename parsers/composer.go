@@ -1,8 +1,10 @@
-package resolve
+package parsers
 
 import (
 	"regexp"
 	"strings"
+
+	"github.com/git-pkgs/resolve"
 )
 
 // composerPkgRe matches "vendor/package version" or "vendor/package version description".
@@ -11,14 +13,14 @@ var composerPkgRe = regexp.MustCompile(`^(\S+/\S+)\s+(\S+)`)
 // parseComposer parses output from `composer show --tree`.
 // Top-level packages are on unindented lines without tree markers.
 // Their dependencies use box-drawing characters (├── └──).
-func parseComposer(data []byte) ([]*Dep, error) {
+func parseComposer(data []byte) ([]*resolve.Dep, error) {
 	lines := strings.Split(string(data), "\n")
-	opts := BoxDrawingOptions()
+	opts := resolve.BoxDrawingOptions()
 
-	var roots []*Dep
+	var roots []*resolve.Dep
 
 	type stackEntry struct {
-		dep   *Dep
+		dep   *resolve.Dep
 		depth int
 	}
 	var stack []stackEntry
@@ -49,11 +51,11 @@ func parseComposer(data []byte) ([]*Dep, error) {
 			if m == nil {
 				continue
 			}
-			dep := &Dep{
-				PURL:    makePURL("packagist", m[1], m[2]),
+			dep := &resolve.Dep{
+				PURL:    resolve.MakePURL("packagist", m[1], m[2]),
 				Name:    m[1],
 				Version: m[2],
-				Deps:    []*Dep{},
+				Deps:    []*resolve.Dep{},
 			}
 			roots = append(roots, dep)
 			stack = []stackEntry{{dep: dep, depth: -1}}
@@ -65,7 +67,7 @@ func parseComposer(data []byte) ([]*Dep, error) {
 		}
 
 		// Parse tree line for depth and content
-		treeLines := ParseTreeLines([]string{line}, opts)
+		treeLines := resolve.ParseTreeLines([]string{line}, opts)
 		if len(treeLines) == 0 {
 			continue
 		}
@@ -76,11 +78,11 @@ func parseComposer(data []byte) ([]*Dep, error) {
 			continue
 		}
 
-		dep := &Dep{
-			PURL:    makePURL("packagist", m[1], m[2]),
+		dep := &resolve.Dep{
+			PURL:    resolve.MakePURL("packagist", m[1], m[2]),
 			Name:    m[1],
 			Version: m[2],
-			Deps:    []*Dep{},
+			Deps:    []*resolve.Dep{},
 		}
 
 		// Pop stack entries at same depth or deeper
@@ -94,4 +96,8 @@ func parseComposer(data []byte) ([]*Dep, error) {
 	}
 
 	return roots, nil
+}
+
+func init() {
+	resolve.Register("composer", "packagist", parseComposer)
 }

@@ -1,13 +1,15 @@
-package resolve
+package parsers
 
 import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/git-pkgs/resolve"
 )
 
 // parseCargo parses output from `cargo metadata --format-version 1`.
-func parseCargo(data []byte) ([]*Dep, error) {
+func parseCargo(data []byte) ([]*resolve.Dep, error) {
 	var meta struct {
 		Packages []struct {
 			Name    string `json:"name"`
@@ -55,18 +57,18 @@ func parseCargo(data []byte) ([]*Dep, error) {
 
 	// Walk from root
 	seen := make(map[string]bool)
-	var buildDep func(id string) *Dep
-	buildDep = func(id string) *Dep {
+	var buildDep func(id string) *resolve.Dep
+	buildDep = func(id string) *resolve.Dep {
 		info, ok := lookup[id]
 		if !ok {
 			// Try to extract from ID format: "name version (source)"
 			info = parseCargoID(id)
 		}
-		dep := &Dep{
-			PURL:    makePURL("cargo", info.Name, info.Version),
+		dep := &resolve.Dep{
+			PURL:    resolve.MakePURL("cargo", info.Name, info.Version),
 			Name:    info.Name,
 			Version: info.Version,
-			Deps:    []*Dep{},
+			Deps:    []*resolve.Dep{},
 		}
 		if seen[id] {
 			return dep
@@ -78,7 +80,7 @@ func parseCargo(data []byte) ([]*Dep, error) {
 		return dep
 	}
 
-	var deps []*Dep
+	var deps []*resolve.Dep
 	for _, child := range children[root] {
 		deps = append(deps, buildDep(child))
 	}
@@ -92,4 +94,8 @@ func parseCargoID(id string) struct{ Name, Version string } {
 		return struct{ Name, Version string }{parts[0], parts[1]}
 	}
 	return struct{ Name, Version string }{id, ""}
+}
+
+func init() {
+	resolve.Register("cargo", "cargo", parseCargo)
 }

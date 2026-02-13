@@ -1,4 +1,4 @@
-package resolve
+package parsers
 
 import (
 	"bufio"
@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/git-pkgs/resolve"
 )
 
 // parseYarn parses output from `yarn list --json`.
 // NDJSON format where one line has {"type":"tree","data":{"trees":[...]}}.
-func parseYarn(data []byte) ([]*Dep, error) {
+func parseYarn(data []byte) ([]*resolve.Dep, error) {
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {
 		line := scanner.Bytes()
@@ -35,18 +37,18 @@ type yarnTree struct {
 	Children []yarnTree `json:"children"`
 }
 
-func walkYarnTrees(trees []yarnTree) []*Dep {
-	var result []*Dep
+func walkYarnTrees(trees []yarnTree) []*resolve.Dep {
+	var result []*resolve.Dep
 	for _, tree := range trees {
 		name, version := parseYarnName(tree.Name)
 		if name == "" {
 			continue
 		}
-		dep := &Dep{
-			PURL:    makePURL("npm", name, version),
+		dep := &resolve.Dep{
+			PURL:    resolve.MakePURL("npm", name, version),
 			Name:    name,
 			Version: version,
-			Deps:    []*Dep{},
+			Deps:    []*resolve.Dep{},
 		}
 		if len(tree.Children) > 0 {
 			dep.Deps = walkYarnTrees(tree.Children)
@@ -65,4 +67,8 @@ func parseYarnName(s string) (string, string) {
 		return s, ""
 	}
 	return s[:idx], s[idx+1:]
+}
+
+func init() {
+	resolve.Register("yarn", "npm", parseYarn)
 }
