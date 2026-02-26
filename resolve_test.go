@@ -90,6 +90,28 @@ func TestNPM(t *testing.T) {
 	}
 }
 
+func TestNPMLongOutput(t *testing.T) {
+	result, err := resolve.Parse("npm", loadFixture(t, "npm-long.json"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Direct) != 2 {
+		t.Fatalf("expected 2 direct deps, got %d", len(result.Direct))
+	}
+
+	eslint := findDep(result.Direct, "eslint")
+	if eslint == nil {
+		t.Fatal("missing eslint")
+	}
+	ajv := findDep(eslint.Deps, "ajv")
+	if ajv == nil {
+		t.Fatal("missing ajv under eslint")
+	}
+	if ajv.Version != "6.12.6" {
+		t.Errorf("ajv version = %q, want %q", ajv.Version, "6.12.6")
+	}
+}
+
 func TestPNPM(t *testing.T) {
 	result, err := resolve.Parse("pnpm", loadFixture(t, "pnpm.json"))
 	if err != nil {

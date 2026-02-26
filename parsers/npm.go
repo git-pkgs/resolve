@@ -11,7 +11,23 @@ import (
 type npmPackage struct {
 	Version         string                `json:"version"`
 	Dependencies    map[string]npmPackage `json:"dependencies"`
-	DevDependencies map[string]npmPackage `json:"devDependencies"`
+	DevDependencies npmDepMap             `json:"devDependencies"`
+}
+
+// npmDepMap is a map that tolerates values being either package objects or
+// plain version strings. npm ls --json --long emits devDependencies at the
+// root as version strings ("eslint": "9.0.0") rather than objects, which
+// would fail a strict unmarshal into map[string]npmPackage.
+type npmDepMap map[string]npmPackage
+
+func (d *npmDepMap) UnmarshalJSON(data []byte) error {
+	var deps map[string]npmPackage
+	if err := json.Unmarshal(data, &deps); err != nil {
+		*d = nil
+		return nil
+	}
+	*d = deps
+	return nil
 }
 
 // parseNPM parses output from `npm ls --depth Infinity --json --long`.
