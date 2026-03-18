@@ -1,0 +1,39 @@
+parsers/deno.go
+  0dabe32fe02d7f34 70-71
+parsers/maven.go
+  0dabe32fe02d7f34 25,29,34-36,40-49,56,66,74-84
+parsers/cargo.go
+  0dabe32fe02d7f34 93
+parsers/helm.go
+  0dabe32fe02d7f34 28
+tree.go
+  0dabe32fe02d7f34 70-79
+resolve_test.go
+  0dabe32fe02d7f34 14-15,67-68,179-180,211-215,217-220,222-223,225-235,237,244-247,320-321,435-438,474-476,478
+parsers/gradle.go
+  0dabe32fe02d7f34 23,25,41,45-48,50-70,74-75,77-81,84-85,87-90,96-100,102-103
+parsers/gomod.go
+  0dabe32fe02d7f34 31
+parsers/lein.go
+  0dabe32fe02d7f34 38,46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "e5caf6eb58a4c636d33fb2f045745a21a8beef4e",
+  "prompts": {
+    "0dabe32fe02d7f34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "628031b8-262c-4a94-943d-35cb3b124486",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Andrew Nesbitt <andrewnez@gmail.com>",
+      "messages": [],
+      "total_additions": 174,
+      "total_deletions": 197,
+      "accepted_lines": 144,
+      "overriden_lines": 0
+    }
+  }
+}
