@@ -20,12 +20,9 @@ func parseGradle(data []byte) ([]*resolve.Dep, error) {
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		// Detect configuration headers like "compileClasspath - ..."
-		if !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "|") &&
-			!strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "\\") &&
-			strings.Contains(line, " - ") {
+		if isGradleConfigHeader(line) {
 			if configDone {
-				continue // only use first configuration
+				continue
 			}
 			inConfig = true
 			continue
@@ -35,74 +32,75 @@ func parseGradle(data []byte) ([]*resolve.Dep, error) {
 			continue
 		}
 
-		// Empty line ends a configuration
 		if strings.TrimSpace(line) == "" {
 			inConfig = false
 			configDone = true
 			continue
 		}
 
-		// Skip duplicate markers
-		if strings.Contains(line, "(*)") {
-			continue
-		}
-		// Skip constraint markers
-		if strings.Contains(line, "(c)") {
+		if strings.Contains(line, "(*)") || strings.Contains(line, "(c)") {
 			continue
 		}
 
-		depth := 0
-		remaining := line
-		for {
-			found := false
-			for _, cont := range []string{"|    ", "     "} {
-				if strings.HasPrefix(remaining, cont) {
-					depth++
-					remaining = remaining[len(cont):]
-					found = true
-					break
-				}
-			}
-			if !found {
-				break
-			}
+		depth, remaining := parseGradleTreeDepth(line)
+		tl, ok := parseGradleCoordinate(remaining, depth)
+		if ok {
+			treeLines = append(treeLines, tl)
 		}
-		for _, prefix := range []string{"+--- ", "\\--- "} {
-			if strings.HasPrefix(remaining, prefix) {
-				remaining = remaining[len(prefix):]
-				break
-			}
-		}
-
-		remaining = strings.TrimSpace(remaining)
-
-		// Parse gradle coordinate: group:name:version [-> resolvedVersion]
-		parts := strings.Split(remaining, ":")
-		if len(parts) < 3 {
-			continue
-		}
-		group := parts[0]
-		artifact := parts[1]
-		versionPart := parts[2]
-
-		// Handle version resolution arrows: "1.0 -> 2.0"
-		version := versionPart
-		if idx := strings.Index(versionPart, " -> "); idx >= 0 {
-			version = versionPart[idx+4:]
-		}
-		version = strings.TrimSpace(version)
-
-		name := group + ":" + artifact
-		treeLines = append(treeLines, resolve.TreeLine{Depth: depth, Content: name + "\t" + version})
 	}
 
-	return resolve.BuildTree(treeLines, "maven", func(content string) (string, string, bool) {
-		parts := strings.SplitN(content, "\t", 2)
-		if len(parts) != 2 {
-			return "", "", false
+	return resolve.BuildTree(treeLines, "maven", resolve.TabContentParser), nil
+}
+
+func isGradleConfigHeader(line string) bool {
+	return !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "|") &&
+		!strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "\\") &&
+		strings.Contains(line, " - ")
+}
+
+func parseGradleTreeDepth(line string) (int, string) {
+	depth := 0
+	remaining := line
+	for {
+		found := false
+		for _, cont := range []string{"|    ", "     "} {
+			if strings.HasPrefix(remaining, cont) {
+				depth++
+				remaining = remaining[len(cont):]
+				found = true
+				break
+			}
 		}
-		return parts[0], parts[1], true
-	}), nil
+		if !found {
+			break
+		}
+	}
+	for _, prefix := range []string{"+--- ", "\\--- "} {
+		if strings.HasPrefix(remaining, prefix) {
+			remaining = remaining[len(prefix):]
+			break
+		}
+	}
+	return depth, strings.TrimSpace(remaining)
+}
+
+func parseGradleCoordinate(s string, depth int) (resolve.TreeLine, bool) {
+	parts := strings.Split(s, ":")
+	if len(parts) < 3 { //nolint:mnd // group:name:version
+		return resolve.TreeLine{}, false
+	}
+	group := parts[0]
+	artifact := parts[1]
+	versionPart := parts[2]
+
+	version := versionPart
+	if _, resolved, ok := strings.Cut(versionPart, " -> "); ok {
+		version = resolved
+	}
+	version = strings.TrimSpace(version)
+
+	name := group + ":" + artifact
+	return resolve.TreeLine{Depth: depth, Content: name + "\t" + version}, true
 }
 
 func init() {

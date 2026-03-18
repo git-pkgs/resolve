@@ -28,7 +28,7 @@ func parseGomod(data []byte) ([]*resolve.Dep, error) {
 			continue
 		}
 		parts := strings.Fields(line)
-		if len(parts) != 2 {
+		if len(parts) != 2 { //nolint:mnd // "parent dep" pair
 			continue
 		}
 

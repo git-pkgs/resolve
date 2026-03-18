@@ -35,7 +35,7 @@ func parseLein(data []byte) ([]*resolve.Dep, error) {
 			}
 		}
 		// Normalize depth: each level is typically 2 spaces
-		depth = depth / 2
+		depth /= 2
 
 		name := m[1]
 		version := m[2]
@@ -43,13 +43,7 @@ func parseLein(data []byte) ([]*resolve.Dep, error) {
 		treeLines = append(treeLines, resolve.TreeLine{Depth: depth, Content: name + "\t" + version})
 	}
 
-	return resolve.BuildTree(treeLines, "clojars", func(content string) (string, string, bool) {
-		parts := strings.SplitN(content, "\t", 2)
-		if len(parts) != 2 {
-			return "", "", false
-		}
-		return parts[0], parts[1], true
-	}), nil
+	return resolve.BuildTree(treeLines, "clojars", resolve.TabContentParser), nil
 }
 
 func init() {

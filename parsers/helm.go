@@ -25,7 +25,7 @@ func parseHelm(data []byte) ([]*resolve.Dep, error) {
 			continue
 		}
 		fields := strings.Fields(line)
-		if len(fields) < 2 {
+		if len(fields) < 2 { //nolint:mnd // name + version
 			continue
 		}
 		name := fields[0]
