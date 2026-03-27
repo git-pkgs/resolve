@@ -1,0 +1,25 @@
+resolve_deps_test.go
+  5e8b61bc86db520c 1-96
+resolve_deps.go
+  5e8b61bc86db520c 1-102,104-131,133-146,149-260
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "ac82c74282d20286c92124ae3cc2c9ad42c921b9",
+  "prompts": {
+    "5e8b61bc86db520c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4bbc4f3b-3965-4ca9-8b26-a0385d677297",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Andrew Nesbitt <andrewnez@gmail.com>",
+      "messages": [],
+      "total_additions": 435,
+      "total_deletions": 79,
+      "accepted_lines": 352,
+      "overriden_lines": 0
+    }
+  }
+}
