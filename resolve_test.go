@@ -11,6 +11,8 @@ import (
 	_ "github.com/git-pkgs/resolve/parsers"
 )
 
+const expressVersion = "4.18.2"
+
 func loadFixture(t *testing.T, name string) []byte {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join("testdata", name))
@@ -62,8 +64,8 @@ func TestNPM(t *testing.T) {
 	if express == nil {
 		t.Fatal("missing express")
 	}
-	if express.Version != "4.18.2" {
-		t.Errorf("express version = %q, want %q", express.Version, "4.18.2")
+	if express.Version != expressVersion {
+		t.Errorf("express version = %q, want %q", express.Version, expressVersion)
 	}
 	if !strings.Contains(express.PURL, "pkg:npm/express@4.18.2") {
 		t.Errorf("express PURL = %q, want pkg:npm/express@4.18.2", express.PURL)
@@ -174,8 +176,8 @@ func TestBun(t *testing.T) {
 	if express == nil {
 		t.Fatal("missing express")
 	}
-	if express.Version != "4.18.2" {
-		t.Errorf("express version = %q, want %q", express.Version, "4.18.2")
+	if express.Version != expressVersion {
+		t.Errorf("express version = %q, want %q", express.Version, expressVersion)
 	}
 	if len(express.Deps) != 2 {
 		t.Errorf("express transitive deps = %d, want 2", len(express.Deps))
@@ -206,37 +208,43 @@ func TestCargo(t *testing.T) {
 	}
 }
 
+type depCheck struct {
+	name         string
+	version      string
+	transitives  int
+}
+
+func checkTreeResult(t *testing.T, result *resolve.Result, ecosystem string, directCount int, checks []depCheck) {
+	t.Helper()
+	if result.Ecosystem != ecosystem {
+		t.Errorf("Ecosystem = %q, want %q", result.Ecosystem, ecosystem)
+	}
+	if len(result.Direct) != directCount {
+		t.Fatalf("expected %d direct deps, got %d", directCount, len(result.Direct))
+	}
+	for _, c := range checks {
+		dep := findDep(result.Direct, c.name)
+		if dep == nil {
+			t.Fatalf("missing %s", c.name)
+		}
+		if c.version != "" && dep.Version != c.version {
+			t.Errorf("%s version = %q, want %q", c.name, dep.Version, c.version)
+		}
+		if c.transitives >= 0 && len(dep.Deps) != c.transitives {
+			t.Errorf("%s transitive deps = %d, want %d", c.name, len(dep.Deps), c.transitives)
+		}
+	}
+}
+
 func TestGomod(t *testing.T) {
 	result, err := resolve.Parse("gomod", loadFixture(t, "gomod.txt"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result.Ecosystem != "golang" {
-		t.Errorf("Ecosystem = %q, want %q", result.Ecosystem, "golang")
-	}
-	if len(result.Direct) != 2 {
-		t.Fatalf("expected 2 direct deps, got %d", len(result.Direct))
-	}
-
-	text := findDep(result.Direct, "golang.org/x/text")
-	if text == nil {
-		t.Fatal("missing golang.org/x/text")
-	}
-	if text.Version != "v0.14.0" {
-		t.Errorf("text version = %q, want %q", text.Version, "v0.14.0")
-	}
-	// text depends on tools
-	if len(text.Deps) != 1 {
-		t.Errorf("text transitive deps = %d, want 1", len(text.Deps))
-	}
-
-	testify := findDep(result.Direct, "github.com/stretchr/testify")
-	if testify == nil {
-		t.Fatal("missing testify")
-	}
-	if len(testify.Deps) != 2 {
-		t.Errorf("testify transitive deps = %d, want 2", len(testify.Deps))
-	}
+	checkTreeResult(t, result, "golang", 2, []depCheck{
+		{"golang.org/x/text", "v0.14.0", 1},
+		{"github.com/stretchr/testify", "", 2},
+	})
 }
 
 func TestPip(t *testing.T) {
@@ -309,8 +317,8 @@ func TestDeno(t *testing.T) {
 	if express == nil {
 		t.Fatal("missing express")
 	}
-	if express.Version != "4.18.2" {
-		t.Errorf("express version = %q, want %q", express.Version, "4.18.2")
+	if express.Version != expressVersion {
+		t.Errorf("express version = %q, want %q", express.Version, expressVersion)
 	}
 }
 
@@ -424,30 +432,10 @@ func TestMaven(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result.Ecosystem != "maven" {
-		t.Errorf("Ecosystem = %q, want %q", result.Ecosystem, "maven")
-	}
-	if len(result.Direct) != 3 {
-		t.Fatalf("expected 3 direct deps, got %d", len(result.Direct))
-	}
-	guava := findDep(result.Direct, "com.google.guava:guava")
-	if guava == nil {
-		t.Fatal("missing guava")
-	}
-	if guava.Version != "32.1.3-jre" {
-		t.Errorf("guava version = %q, want %q", guava.Version, "32.1.3-jre")
-	}
-	if len(guava.Deps) != 2 {
-		t.Errorf("guava transitive deps = %d, want 2", len(guava.Deps))
-	}
-
-	junit := findDep(result.Direct, "junit:junit")
-	if junit == nil {
-		t.Fatal("missing junit")
-	}
-	if len(junit.Deps) != 1 {
-		t.Errorf("junit transitive deps = %d, want 1", len(junit.Deps))
-	}
+	checkTreeResult(t, result, "maven", 3, []depCheck{
+		{"com.google.guava:guava", "32.1.3-jre", 2},
+		{"junit:junit", "", 1},
+	})
 }
 
 func TestGradle(t *testing.T) {
@@ -483,23 +471,11 @@ func TestComposer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result.Ecosystem != "packagist" {
-		t.Errorf("Ecosystem = %q, want %q", result.Ecosystem, "packagist")
-	}
-	if len(result.Direct) != 2 {
-		t.Fatalf("expected 2 direct deps, got %d", len(result.Direct))
-	}
-	laravel := findDep(result.Direct, "laravel/framework")
-	if laravel == nil {
-		t.Fatal("missing laravel/framework")
-	}
-	if laravel.Version != "v10.38.1" {
-		t.Errorf("laravel version = %q, want %q", laravel.Version, "v10.38.1")
-	}
-	if len(laravel.Deps) != 3 {
-		t.Errorf("laravel transitive deps = %d, want 3", len(laravel.Deps))
-	}
+	checkTreeResult(t, result, "packagist", 2, []depCheck{
+		{"laravel/framework", "v10.38.1", 3},
+	})
 	// Check nested guzzle deps
+	laravel := findDep(result.Direct, "laravel/framework")
 	guzzle := findDep(laravel.Deps, "guzzlehttp/guzzle")
 	if guzzle == nil {
 		t.Fatal("missing guzzlehttp/guzzle")

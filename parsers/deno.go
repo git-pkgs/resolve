@@ -67,10 +67,8 @@ func parseDenoSpecifier(spec string) (string, string) {
 	// https://deno.land/x/oak@12.0.0/mod.ts -> name="oak", version="12.0.0"
 	if strings.HasPrefix(spec, "https://deno.land/") {
 		rest := spec[len("https://deno.land/"):]
-		// Strip "std/" or "x/" prefix if followed by more path
-		if strings.HasPrefix(rest, "x/") {
-			rest = rest[2:]
-		}
+		// Strip "x/" prefix if followed by more path
+		rest = strings.TrimPrefix(rest, "x/")
 		// Now rest is like "std@0.200.0/path/mod.ts" or "oak@12.0.0/mod.ts"
 		if idx := strings.Index(rest, "@"); idx > 0 {
 			name := rest[:idx]

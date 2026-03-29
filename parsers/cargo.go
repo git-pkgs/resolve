@@ -90,7 +90,7 @@ func parseCargo(data []byte) ([]*resolve.Dep, error) {
 func parseCargoID(id string) struct{ Name, Version string } {
 	// Cargo IDs look like "name version (source)" or "name version"
 	parts := strings.Fields(id)
-	if len(parts) >= 2 {
+	if len(parts) >= 2 { //nolint:mnd // name + version
 		return struct{ Name, Version string }{parts[0], parts[1]}
 	}
 	return struct{ Name, Version string }{id, ""}

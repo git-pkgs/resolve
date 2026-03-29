@@ -67,6 +67,16 @@ func ParseTreeLines(lines []string, opts TreeOptions) []TreeLine {
 	return result
 }
 
+// TabContentParser splits tab-separated "name\tversion" content for BuildTree.
+// Used by parsers that encode name and version as a tab-delimited pair.
+func TabContentParser(content string) (string, string, bool) {
+	name, version, ok := strings.Cut(content, "\t")
+	if !ok {
+		return "", "", false
+	}
+	return name, version, true
+}
+
 // BuildTree takes tree lines and a content-parser function, and builds a []*Dep tree.
 // The contentParser receives the content string and returns (name, version, deps-placeholder).
 // Deps is set to non-nil empty slice to indicate tree structure is available.
