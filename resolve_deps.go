@@ -86,7 +86,7 @@ func ResolveDeps(ctx context.Context, manager string, deps []InputDep) (*Result,
 			return nil, fmt.Errorf("init %s: exit %d: %s", manager, result.ExitCode, result.Stderr)
 		}
 
-		// Re-detect after init (some commands create subdirectories).
+		// Re-detect so the manager picks up the freshly created manifest.
 		mgr, err = detector.Detect(tmpDir, managers.DetectOptions{Manager: manager})
 		if err != nil {
 			return nil, fmt.Errorf("re-detecting manager after init: %w", err)
@@ -155,6 +155,12 @@ func writeManifest(dir, manager string, deps []InputDep) error {
 		return writeMavenManifest(dir, deps)
 	case "sbt":
 		return writeSbtManifest(dir, deps)
+	case "pub":
+		return writePubManifest(dir, deps)
+	case "mix":
+		return writeMixManifest(dir, deps)
+	case "lein":
+		return writeLeinManifest(dir, deps)
 	default:
 		return fmt.Errorf("no manifest template for manager %s", manager)
 	}
@@ -235,6 +241,83 @@ func writeSbtManifest(dir string, deps []InputDep) error {
 	}
 
 	return os.WriteFile(filepath.Join(dir, "build.sbt"), []byte(strings.Join(lines, "\n")+"\n"), 0644)
+}
+
+func writePubManifest(dir string, deps []InputDep) error {
+	var b strings.Builder
+	b.WriteString("name: resolve_tmp\n")
+	b.WriteString("environment:\n")
+	b.WriteString("  sdk: '>=2.12.0 <4.0.0'\n")
+
+	if len(deps) == 0 {
+		b.WriteString("dependencies: {}\n")
+	} else {
+		b.WriteString("dependencies:\n")
+		for _, dep := range deps {
+			if dep.Version == "" {
+				fmt.Fprintf(&b, "  %s: any\n", dep.Name)
+			} else {
+				fmt.Fprintf(&b, "  %s: %q\n", dep.Name, dep.Version)
+			}
+		}
+	}
+
+	return os.WriteFile(filepath.Join(dir, "pubspec.yaml"), []byte(b.String()), 0644)
+}
+
+func writeMixManifest(dir string, deps []InputDep) error {
+	var depLines []string
+	for _, dep := range deps {
+		version := dep.Version
+		if version == "" {
+			version = ">= 0.0.0"
+		}
+		depLines = append(depLines, fmt.Sprintf(`      {:%s, %q}`, dep.Name, version))
+	}
+	depList := "[]"
+	if len(depLines) > 0 {
+		depList = "[\n" + strings.Join(depLines, ",\n") + "\n    ]"
+	}
+
+	src := `defmodule ResolveTmp.MixProject do
+  use Mix.Project
+
+  def project do
+    [
+      app: :resolve_tmp,
+      version: "0.1.0",
+      elixir: "~> 1.12",
+      deps: deps()
+    ]
+  end
+
+  def application do
+    [extra_applications: [:logger]]
+  end
+
+  defp deps do
+    ` + depList + `
+  end
+end
+`
+	return os.WriteFile(filepath.Join(dir, "mix.exs"), []byte(src), 0644)
+}
+
+func writeLeinManifest(dir string, deps []InputDep) error {
+	// org.clojure/clojure must always be present or lein deps fails.
+	depLines := []string{`[org.clojure/clojure "1.11.1"]`}
+	for _, dep := range deps {
+		version := dep.Version
+		if version == "" {
+			version = "RELEASE"
+		}
+		depLines = append(depLines, fmt.Sprintf(`[%s %q]`, dep.Name, version))
+	}
+
+	src := `(defproject resolve-tmp "0.1.0"
+  :dependencies [` + strings.Join(depLines, "\n                 ") + `])
+`
+	return os.WriteFile(filepath.Join(dir, "project.clj"), []byte(src), 0644)
 }
 
 // envVarsToClear lists specific environment variables that point to a parent
