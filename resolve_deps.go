@@ -12,6 +12,8 @@ import (
 	"github.com/git-pkgs/managers/definitions"
 )
 
+const manifestPerm = 0o644
+
 // InputDep describes a dependency to add to the generated project.
 type InputDep struct {
 	Name    string // package name in ecosystem-native format
@@ -42,23 +44,50 @@ func EcosystemForManager(manager string) (string, bool) {
 //
 // The package manager CLI must be installed and available on PATH.
 func ResolveDeps(ctx context.Context, manager string, deps []InputDep) (*Result, error) {
-	// Verify we have a parser for this manager.
 	if _, ok := parsers[manager]; !ok {
 		return nil, fmt.Errorf("%w: %s", ErrUnsupportedManager, manager)
 	}
 
-	// Clear environment variables that might leak from parent processes
-	// (e.g. BUNDLE_GEMFILE from a Rails app calling this binary).
 	clearParentEnv()
 
-	// Create temp directory for the project.
 	tmpDir, err := os.MkdirTemp("", "resolve-*")
 	if err != nil {
 		return nil, fmt.Errorf("creating temp dir: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	// Set up the managers library.
+	detector, err := newDetector()
+	if err != nil {
+		return nil, err
+	}
+
+	mgr, err := detector.Detect(tmpDir, managers.DetectOptions{Manager: manager})
+	if err != nil {
+		return nil, fmt.Errorf("setting up manager %s: %w", manager, err)
+	}
+
+	if mgr.Supports(managers.CapInit) {
+		mgr, err = initAndAdd(ctx, mgr, detector, tmpDir, manager, deps)
+	} else {
+		mgr, err = writeAndInstall(ctx, mgr, detector, tmpDir, manager, deps)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if !mgr.Supports(managers.CapResolve) {
+		return nil, fmt.Errorf("%w: %s", ErrResolveNotSupported, manager)
+	}
+
+	resolveResult, err := mgr.Resolve(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("resolve %s: %w", manager, err)
+	}
+
+	return Parse(manager, []byte(resolveResult.Stdout))
+}
+
+func newDetector() (*managers.Detector, error) {
 	defs, err := definitions.LoadEmbedded()
 	if err != nil {
 		return nil, fmt.Errorf("loading manager definitions: %w", err)
@@ -70,80 +99,63 @@ func ResolveDeps(ctx context.Context, manager string, deps []InputDep) (*Result,
 	for _, def := range defs {
 		detector.Register(def)
 	}
+	return detector, nil
+}
+
+func initAndAdd(ctx context.Context, mgr managers.Manager, detector *managers.Detector, tmpDir, manager string, deps []InputDep) (managers.Manager, error) { //nolint:ireturn
+	result, err := mgr.Init(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("init %s: %w", manager, err)
+	}
+	if !result.Success() {
+		return nil, fmt.Errorf("init %s: exit %d: %s", manager, result.ExitCode, result.Stderr)
+	}
+
+	mgr, err = detector.Detect(tmpDir, managers.DetectOptions{Manager: manager})
+	if err != nil {
+		return nil, fmt.Errorf("re-detecting manager after init: %w", err)
+	}
+
+	if mgr.Supports(managers.CapAdd) {
+		seen := make(map[string]bool)
+		for _, dep := range deps {
+			if seen[dep.Name] {
+				continue
+			}
+			seen[dep.Name] = true
+
+			result, err := mgr.Add(ctx, dep.Name, managers.AddOptions{Version: dep.Version})
+			if err != nil {
+				return nil, fmt.Errorf("add %s: %w", dep.Name, err)
+			}
+			if !result.Success() {
+				return nil, fmt.Errorf("add %s: exit %d: %s", dep.Name, result.ExitCode, result.Stderr)
+			}
+		}
+	}
+
+	return mgr, nil
+}
+
+func writeAndInstall(ctx context.Context, _ managers.Manager, detector *managers.Detector, tmpDir, manager string, deps []InputDep) (managers.Manager, error) { //nolint:ireturn
+	if err := writeManifest(tmpDir, manager, deps); err != nil {
+		return nil, fmt.Errorf("writing manifest for %s: %w", manager, err)
+	}
 
 	mgr, err := detector.Detect(tmpDir, managers.DetectOptions{Manager: manager})
 	if err != nil {
-		return nil, fmt.Errorf("setting up manager %s: %w", manager, err)
+		return nil, fmt.Errorf("detecting manager after manifest write: %w", err)
 	}
 
-	// Init the project and add dependencies.
-	if mgr.Supports(managers.CapInit) {
-		result, err := mgr.Init(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("init %s: %w", manager, err)
-		}
-		if !result.Success() {
-			return nil, fmt.Errorf("init %s: exit %d: %s", manager, result.ExitCode, result.Stderr)
-		}
-
-		// Re-detect so the manager picks up the freshly created manifest.
-		mgr, err = detector.Detect(tmpDir, managers.DetectOptions{Manager: manager})
-		if err != nil {
-			return nil, fmt.Errorf("re-detecting manager after init: %w", err)
-		}
-
-		// Add each dependency via the manager CLI.
-		if mgr.Supports(managers.CapAdd) {
-			seen := make(map[string]bool)
-			for _, dep := range deps {
-				if seen[dep.Name] {
-					continue
-				}
-				seen[dep.Name] = true
-
-				result, err := mgr.Add(ctx, dep.Name, managers.AddOptions{Version: dep.Version})
-				if err != nil {
-					return nil, fmt.Errorf("add %s: %w", dep.Name, err)
-				}
-				if !result.Success() {
-					return nil, fmt.Errorf("add %s: exit %d: %s", dep.Name, result.ExitCode, result.Stderr)
-				}
-			}
-		}
-	} else {
-		// Fallback: write a minimal manifest for managers without init.
-		if err := writeManifest(tmpDir, manager, deps); err != nil {
-			return nil, fmt.Errorf("writing manifest for %s: %w", manager, err)
-		}
-
-		// Re-detect so the manager sees the manifest.
-		mgr, err = detector.Detect(tmpDir, managers.DetectOptions{Manager: manager})
-		if err != nil {
-			return nil, fmt.Errorf("detecting manager after manifest write: %w", err)
-		}
-
-		// Run install to resolve dependencies.
-		installResult, err := mgr.Install(ctx, managers.InstallOptions{})
-		if err != nil {
-			return nil, fmt.Errorf("install %s: %w", manager, err)
-		}
-		if !installResult.Success() {
-			return nil, fmt.Errorf("install %s: exit %d: %s", manager, installResult.ExitCode, installResult.Stderr)
-		}
-	}
-
-	// Run resolve to get the dependency graph output.
-	if !mgr.Supports(managers.CapResolve) {
-		return nil, fmt.Errorf("%w: %s", ErrResolveNotSupported, manager)
-	}
-
-	resolveResult, err := mgr.Resolve(ctx)
+	installResult, err := mgr.Install(ctx, managers.InstallOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("resolve %s: %w", manager, err)
+		return nil, fmt.Errorf("install %s: %w", manager, err)
+	}
+	if !installResult.Success() {
+		return nil, fmt.Errorf("install %s: exit %d: %s", manager, installResult.ExitCode, installResult.Stderr)
 	}
 
-	// Parse the output.
-	return Parse(manager, []byte(resolveResult.Stdout))
+	return mgr, nil
 }
 
 // writeManifest creates a minimal manifest file for managers that don't support init.
@@ -175,19 +187,13 @@ func writePipManifest(dir string, deps []InputDep) error {
 			lines = append(lines, dep.Name)
 		}
 	}
-	return os.WriteFile(filepath.Join(dir, "requirements.txt"), []byte(strings.Join(lines, "\n")+"\n"), 0644)
+	return os.WriteFile(filepath.Join(dir, "requirements.txt"), []byte(strings.Join(lines, "\n")+"\n"), manifestPerm)
 }
 
 func writeMavenManifest(dir string, deps []InputDep) error {
 	var depXML strings.Builder
 	for _, dep := range deps {
-		// Maven deps use groupId:artifactId format
-		parts := strings.SplitN(dep.Name, ":", 2)
-		groupID := parts[0]
-		artifactID := groupID
-		if len(parts) == 2 {
-			artifactID = parts[1]
-		}
+		groupID, artifactID := splitGroupArtifact(dep.Name)
 		version := dep.Version
 		if version == "" {
 			version = "[0,)"
@@ -211,7 +217,7 @@ func writeMavenManifest(dir string, deps []InputDep) error {
 ` + depXML.String() + `  </dependencies>
 </project>
 `
-	return os.WriteFile(filepath.Join(dir, "pom.xml"), []byte(pom), 0644)
+	return os.WriteFile(filepath.Join(dir, "pom.xml"), []byte(pom), manifestPerm)
 }
 
 func writeSbtManifest(dir string, deps []InputDep) error {
@@ -222,12 +228,7 @@ func writeSbtManifest(dir string, deps []InputDep) error {
 
 	var depLines []string
 	for _, dep := range deps {
-		parts := strings.SplitN(dep.Name, ":", 2)
-		groupID := parts[0]
-		artifactID := groupID
-		if len(parts) == 2 {
-			artifactID = parts[1]
-		}
+		groupID, artifactID := splitGroupArtifact(dep.Name)
 		version := dep.Version
 		if version == "" {
 			version = "LATEST"
@@ -240,7 +241,7 @@ func writeSbtManifest(dir string, deps []InputDep) error {
 		lines = append(lines, ")")
 	}
 
-	return os.WriteFile(filepath.Join(dir, "build.sbt"), []byte(strings.Join(lines, "\n")+"\n"), 0644)
+	return os.WriteFile(filepath.Join(dir, "build.sbt"), []byte(strings.Join(lines, "\n")+"\n"), manifestPerm)
 }
 
 func writePubManifest(dir string, deps []InputDep) error {
@@ -262,7 +263,7 @@ func writePubManifest(dir string, deps []InputDep) error {
 		}
 	}
 
-	return os.WriteFile(filepath.Join(dir, "pubspec.yaml"), []byte(b.String()), 0644)
+	return os.WriteFile(filepath.Join(dir, "pubspec.yaml"), []byte(b.String()), manifestPerm)
 }
 
 func writeMixManifest(dir string, deps []InputDep) error {
@@ -300,7 +301,7 @@ func writeMixManifest(dir string, deps []InputDep) error {
   end
 end
 `
-	return os.WriteFile(filepath.Join(dir, "mix.exs"), []byte(src), 0644)
+	return os.WriteFile(filepath.Join(dir, "mix.exs"), []byte(src), manifestPerm)
 }
 
 func writeLeinManifest(dir string, deps []InputDep) error {
@@ -317,7 +318,7 @@ func writeLeinManifest(dir string, deps []InputDep) error {
 	src := `(defproject resolve-tmp "0.1.0"
   :dependencies [` + strings.Join(depLines, "\n                 ") + `])
 `
-	return os.WriteFile(filepath.Join(dir, "project.clj"), []byte(src), 0644)
+	return os.WriteFile(filepath.Join(dir, "project.clj"), []byte(src), manifestPerm)
 }
 
 // envVarsToClear lists specific environment variables that point to a parent
@@ -340,6 +341,14 @@ var envVarsToClear = []string{
 // package manager commands run in a temporary directory.
 func clearParentEnv() {
 	for _, key := range envVarsToClear {
-		os.Unsetenv(key)
+		_ = os.Unsetenv(key)
 	}
+}
+
+func splitGroupArtifact(name string) (groupID, artifactID string) {
+	groupID, artifactID, found := strings.Cut(name, ":")
+	if !found {
+		artifactID = groupID
+	}
+	return groupID, artifactID
 }
