@@ -27,6 +27,7 @@ type Result struct {
 
 var managerEcosystem = map[string]string{}
 var parsers = map[string]func([]byte) ([]*Dep, error){}
+var dirParsers = map[string]func(string) ([]*Dep, error){}
 
 // Register adds a parser for a manager. Called from parser init() functions.
 func Register(manager, ecosystem string, fn func([]byte) ([]*Dep, error)) {
@@ -34,19 +35,46 @@ func Register(manager, ecosystem string, fn func([]byte) ([]*Dep, error)) {
 	parsers[manager] = fn
 }
 
+// RegisterDir adds a parser that reads files from the project directory rather
+// than command stdout. Used for managers whose lockfile is the canonical
+// resolved-graph source (e.g. composer.lock).
+func RegisterDir(manager, ecosystem string, fn func(string) ([]*Dep, error)) {
+	managerEcosystem[manager] = ecosystem
+	dirParsers[manager] = fn
+}
+
 // Parse dispatches to the per-manager parser and returns the dependency graph.
 func Parse(manager string, output []byte) (*Result, error) {
+	parse, ok := parsers[manager]
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", ErrUnsupportedManager, manager)
+	}
+	return buildResult(manager, func() ([]*Dep, error) { return parse(output) })
+}
+
+// ParseDir dispatches to a directory-based parser. The parser reads whatever
+// files it needs (manifest, lockfile) from dir.
+func ParseDir(manager, dir string) (*Result, error) {
+	parse, ok := dirParsers[manager]
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", ErrUnsupportedManager, manager)
+	}
+	return buildResult(manager, func() ([]*Dep, error) { return parse(dir) })
+}
+
+// HasDirParser reports whether manager registered a directory-based parser.
+func HasDirParser(manager string) bool {
+	_, ok := dirParsers[manager]
+	return ok
+}
+
+func buildResult(manager string, parse func() ([]*Dep, error)) (*Result, error) {
 	eco, ok := managerEcosystem[manager]
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", ErrUnsupportedManager, manager)
 	}
 
-	parse, ok := parsers[manager]
-	if !ok {
-		return nil, fmt.Errorf("%w: %s", ErrUnsupportedManager, manager)
-	}
-
-	deps, err := parse(output)
+	deps, err := parse()
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", manager, err)
 	}

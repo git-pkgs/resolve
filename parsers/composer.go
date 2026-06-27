@@ -1,103 +1,129 @@
 package parsers
 
 import (
-	"regexp"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/git-pkgs/resolve"
 )
 
-// composerPkgRe matches "vendor/package version" or "vendor/package version description".
-var composerPkgRe = regexp.MustCompile(`^(\S+/\S+)\s+(\S+)`)
+type composerManifest struct {
+	Require map[string]string `json:"require"`
+}
 
-// parseComposer parses output from `composer show --tree`.
-// Top-level packages are on unindented lines without tree markers.
-// Their dependencies use box-drawing characters (├── └──).
-func parseComposer(data []byte) ([]*resolve.Dep, error) {
-	lines := strings.Split(string(data), "\n")
-	opts := resolve.BoxDrawingOptions()
+type composerLock struct {
+	Packages    []composerLockPackage `json:"packages"`
+	PackagesDev []composerLockPackage `json:"packages-dev"`
+}
 
-	var roots []*resolve.Dep
+type composerLockPackage struct {
+	Name    string            `json:"name"`
+	Version string            `json:"version"`
+	Require map[string]string `json:"require"`
+}
 
-	type stackEntry struct {
-		dep   *resolve.Dep
-		depth int
+// parseComposerDir reads composer.json and composer.lock from dir and builds
+// the dependency graph. composer.lock provides resolved versions for every
+// installed package plus each package's require map; composer.json identifies
+// the direct dependencies that become tree roots.
+func parseComposerDir(dir string) ([]*resolve.Dep, error) {
+	var manifest composerManifest
+	if err := readJSON(filepath.Join(dir, "composer.json"), &manifest); err != nil {
+		return nil, fmt.Errorf("reading composer.json: %w", err)
 	}
-	var stack []stackEntry
 
-	for _, line := range lines {
-		if line == "" {
-			continue
-		}
+	var lock composerLock
+	if err := readJSON(filepath.Join(dir, "composer.lock"), &lock); err != nil {
+		return nil, fmt.Errorf("reading composer.lock: %w", err)
+	}
 
-		// Check if line has tree markers (it's a sub-dependency)
-		hasTreeMarker := false
-		for _, prefix := range opts.Prefixes {
-			if strings.Contains(line, prefix) {
-				hasTreeMarker = true
-				break
-			}
-		}
-		for _, cont := range opts.Continuations {
-			if strings.HasPrefix(line, cont) {
-				hasTreeMarker = true
-				break
-			}
-		}
+	packages := make(map[string]composerLockPackage)
+	for _, pkg := range lock.Packages {
+		packages[pkg.Name] = pkg
+	}
+	for _, pkg := range lock.PackagesDev {
+		packages[pkg.Name] = pkg
+	}
 
-		if !hasTreeMarker {
-			// Top-level package line
-			m := composerPkgRe.FindStringSubmatch(line)
-			if m == nil {
-				continue
-			}
-			dep := &resolve.Dep{
-				PURL:    resolve.MakePURL("packagist", m[1], m[2]),
-				Name:    m[1],
-				Version: m[2],
-				Deps:    []*resolve.Dep{},
-			}
-			roots = append(roots, dep)
-			stack = []stackEntry{{dep: dep, depth: -1}}
-			continue
+	seen := make(map[string]bool)
+	var build func(name string) *resolve.Dep
+	build = func(name string) *resolve.Dep {
+		pkg, ok := packages[name]
+		if !ok {
+			return nil
 		}
-
-		if len(stack) == 0 {
-			continue
-		}
-
-		// Parse tree line for depth and content
-		treeLines := resolve.ParseTreeLines([]string{line}, opts)
-		if len(treeLines) == 0 {
-			continue
-		}
-
-		tl := treeLines[0]
-		m := composerPkgRe.FindStringSubmatch(tl.Content)
-		if m == nil {
-			continue
-		}
-
 		dep := &resolve.Dep{
-			PURL:    resolve.MakePURL("packagist", m[1], m[2]),
-			Name:    m[1],
-			Version: m[2],
+			PURL:    resolve.MakePURL("packagist", pkg.Name, normaliseComposerVersion(pkg.Version)),
+			Name:    pkg.Name,
+			Version: normaliseComposerVersion(pkg.Version),
 			Deps:    []*resolve.Dep{},
 		}
-
-		// Pop stack entries at same depth or deeper
-		for len(stack) > 1 && stack[len(stack)-1].depth >= tl.Depth {
-			stack = stack[:len(stack)-1]
+		if seen[name] {
+			return dep
 		}
-
-		parent := stack[len(stack)-1].dep
-		parent.Deps = append(parent.Deps, dep)
-		stack = append(stack, stackEntry{dep: dep, depth: tl.Depth})
+		seen[name] = true
+		for childName := range pkg.Require {
+			if isComposerPlatformPackage(childName) {
+				continue
+			}
+			if child := build(childName); child != nil {
+				dep.Deps = append(dep.Deps, child)
+			}
+		}
+		return dep
 	}
 
+	var roots []*resolve.Dep
+	for name := range manifest.Require {
+		if isComposerPlatformPackage(name) {
+			continue
+		}
+		if dep := build(name); dep != nil {
+			roots = append(roots, dep)
+		}
+	}
 	return roots, nil
 }
 
+// isComposerPlatformPackage reports whether name is a Composer platform
+// requirement (php, hhvm, ext-*, lib-*, composer runtime/plugin APIs) rather
+// than an installable Packagist package.
+func isComposerPlatformPackage(name string) bool {
+	if name == "php" || name == "hhvm" {
+		return true
+	}
+	if strings.HasPrefix(name, "php-") {
+		return true
+	}
+	if strings.HasPrefix(name, "ext-") || strings.HasPrefix(name, "lib-") {
+		return true
+	}
+	if name == "composer" || strings.HasPrefix(name, "composer-") {
+		return true
+	}
+	return false
+}
+
+// normaliseComposerVersion strips a leading "v" so versions match Packagist's
+// canonical form (composer.lock stores tags like "v7.1.0").
+func normaliseComposerVersion(v string) string {
+	if len(v) > 1 && (v[0] == 'v' || v[0] == 'V') && v[1] >= '0' && v[1] <= '9' {
+		return v[1:]
+	}
+	return v
+}
+
+func readJSON(path string, dst any) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(data, dst)
+}
+
 func init() {
-	resolve.Register("composer", "packagist", parseComposer)
+	resolve.RegisterDir("composer", "packagist", parseComposerDir)
 }

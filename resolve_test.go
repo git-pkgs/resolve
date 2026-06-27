@@ -467,21 +467,58 @@ func TestGradle(t *testing.T) {
 }
 
 func TestComposer(t *testing.T) {
-	result, err := resolve.Parse("composer", loadFixture(t, "composer.txt"))
+	result, err := resolve.ParseDir("composer", filepath.Join("testdata", "composer"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	checkTreeResult(t, result, "packagist", 2, []depCheck{
-		{"laravel/framework", "v10.38.1", 3},
+		{"guzzlehttp/guzzle", "7.12.3", 4},
+		{"psr/cache", "3.0.0", 0},
 	})
-	// Check nested guzzle deps
-	laravel := findDep(result.Direct, "laravel/framework")
-	guzzle := findDep(laravel.Deps, "guzzlehttp/guzzle")
-	if guzzle == nil {
-		t.Fatal("missing guzzlehttp/guzzle")
+
+	guzzle := findDep(result.Direct, "guzzlehttp/guzzle")
+
+	// Platform packages (php, ext-*) must be filtered out.
+	for _, name := range []string{"php", "ext-json"} {
+		if findDep(guzzle.Deps, name) != nil {
+			t.Errorf("platform package %q should be filtered", name)
+		}
 	}
-	if len(guzzle.Deps) != 2 {
-		t.Errorf("guzzle transitive deps = %d, want 2", len(guzzle.Deps))
+
+	// Transitive deps must carry resolved versions from the lockfile,
+	// not the constraint string from the parent's require block.
+	promises := findDep(guzzle.Deps, "guzzlehttp/promises")
+	if promises == nil {
+		t.Fatal("missing guzzlehttp/promises")
+	}
+	if promises.Version != "2.5.0" {
+		t.Errorf("promises version = %q, want resolved 2.5.0", promises.Version)
+	}
+
+	// Leading "v" on tag-style versions is stripped.
+	contracts := findDep(guzzle.Deps, "symfony/deprecation-contracts")
+	if contracts == nil {
+		t.Fatal("missing symfony/deprecation-contracts")
+	}
+	if contracts.Version != "3.7.0" {
+		t.Errorf("deprecation-contracts version = %q, want 3.7.0", contracts.Version)
+	}
+
+	// Deeper nesting still resolves.
+	psr7 := findDep(guzzle.Deps, "guzzlehttp/psr7")
+	if psr7 == nil {
+		t.Fatal("missing guzzlehttp/psr7")
+	}
+	msg := findDep(psr7.Deps, "psr/http-message")
+	if msg == nil || msg.Version != "2.0" {
+		t.Errorf("psr/http-message = %v, want version 2.0", msg)
+	}
+}
+
+func TestComposerMissingLockfile(t *testing.T) {
+	_, err := resolve.ParseDir("composer", t.TempDir())
+	if err == nil {
+		t.Fatal("expected error for missing composer.json")
 	}
 }
 

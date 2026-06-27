@@ -1,0 +1,8 @@
+{
+    "name": "resolve/tmp",
+    "require": {
+        "php": "^8.1",
+        "guzzlehttp/guzzle": "^7.12",
+        "psr/cache": "^3.0"
+    }
+}
