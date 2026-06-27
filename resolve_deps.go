@@ -25,8 +25,8 @@ var ErrResolveNotSupported = errors.New("manager does not support resolve")
 
 // Managers returns the list of manager names that have registered parsers.
 func Managers() []string {
-	names := make([]string, 0, len(parsers))
-	for name := range parsers {
+	names := make([]string, 0, len(managerEcosystem))
+	for name := range managerEcosystem {
 		names = append(names, name)
 	}
 	return names
@@ -44,7 +44,9 @@ func EcosystemForManager(manager string) (string, bool) {
 //
 // The package manager CLI must be installed and available on PATH.
 func ResolveDeps(ctx context.Context, manager string, deps []InputDep) (*Result, error) {
-	if _, ok := parsers[manager]; !ok {
+	_, hasParser := parsers[manager]
+	_, hasDirParser := dirParsers[manager]
+	if !hasParser && !hasDirParser {
 		return nil, fmt.Errorf("%w: %s", ErrUnsupportedManager, manager)
 	}
 
@@ -73,6 +75,10 @@ func ResolveDeps(ctx context.Context, manager string, deps []InputDep) (*Result,
 	}
 	if err != nil {
 		return nil, err
+	}
+
+	if hasDirParser {
+		return ParseDir(manager, tmpDir)
 	}
 
 	if !mgr.Supports(managers.CapResolve) {
