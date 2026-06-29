@@ -10,6 +10,6 @@ require (
 )
 
 require (
-	github.com/git-pkgs/managers v0.8.3
+	github.com/git-pkgs/managers v0.9.0
 	github.com/git-pkgs/vers v0.2.5 // indirect
 )
