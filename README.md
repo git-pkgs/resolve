@@ -4,6 +4,12 @@ Parses raw package manager CLI output into a normalized dependency graph with [P
 
 Takes the output bytes from a manager's resolve command (e.g. `npm ls --json`, `go mod graph`, `uv tree`) and returns a structured `Result` with the dependency tree and PURL for each package.
 
+## Installation
+
+```sh
+go get github.com/git-pkgs/resolve
+```
+
 ## Usage
 
 ```go
@@ -52,3 +58,7 @@ Each `Dep` includes the ecosystem-native package name, resolved version, a PURL 
 | conan | conan | Custom |
 | deno | deno | JSON flat |
 | helm | helm | Tabular |
+
+## License
+
+[MIT](LICENSE).
