@@ -88,5 +88,5 @@ func buildResult(manager string, parse func() ([]*Dep, error)) (*Result, error) 
 
 // MakePURL constructs a PURL string for a dependency.
 func MakePURL(ecosystem, name, version string) string {
-	return purl.MakePURL(ecosystem, name, version).String()
+	return purl.MakePURLString(ecosystem, name, version)
 }
