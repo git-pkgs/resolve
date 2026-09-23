@@ -8,10 +8,10 @@ require github.com/git-pkgs/purl v0.1.12
 
 require (
 	github.com/package-url/packageurl-go v0.1.6 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 )
 
 require (
-	github.com/git-pkgs/managers v0.9.0
+	github.com/git-pkgs/managers v0.12.0
 	github.com/git-pkgs/vers v0.2.5 // indirect
 )
