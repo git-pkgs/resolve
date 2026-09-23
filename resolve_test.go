@@ -2,6 +2,7 @@ package resolve_test
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -339,6 +340,48 @@ func TestSwift(t *testing.T) {
 	}
 	if len(parser.Deps) != 1 {
 		t.Errorf("transitive deps = %d, want 1", len(parser.Deps))
+	}
+}
+
+func TestSwiftPURL(t *testing.T) {
+	const wantPURL = "pkg:swift/github.com/apple/swift-log@1.5.3"
+	tests := []struct {
+		name string
+		url  string
+		want string
+	}{
+		{"https", "https://github.com/apple/swift-log.git", wantPURL},
+		{"https without suffix", "https://github.com/apple/swift-log", wantPURL},
+		{"ssh", "ssh://git@github.com/apple/swift-log.git", wantPURL},
+		{"scp", "git@github.com:apple/swift-log.git", wantPURL},
+		{"missing owner", "https://github.com/swift-log.git", ""},
+		{"missing URL", "", ""},
+		{"registry identity", "apple.swift-log", ""},
+		{"local path", "/tmp/swift-log", ""},
+		{"file URL", "file:///tmp/swift-log", ""},
+		{"invalid URL", "https://%invalid", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := fmt.Sprintf(`{"name":"MyProject","dependencies":[{
+				"identity":"swift-log","name":"swift-log","url":%q,
+				"version":"1.5.3","dependencies":[]
+			}]}`, tt.url)
+			result, err := resolve.Parse("swift", []byte(input))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(result.Direct) != 1 {
+				t.Fatalf("expected one dependency, got %+v", result)
+			}
+			dep := result.Direct[0]
+			if dep.PURL != tt.want {
+				t.Errorf("PURL = %q, want %q", dep.PURL, tt.want)
+			}
+			if dep.Name != "swift-log" || dep.Version != "1.5.3" {
+				t.Errorf("dependency name/version changed: %+v", dep)
+			}
+		})
 	}
 }
 
