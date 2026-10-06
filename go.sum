@@ -1,9 +1,9 @@
 github.com/git-pkgs/managers v0.12.0 h1:Ex0fZ7hOzoxzXYLmY5ghxqel6jAltaehuGOcPFeQz4U=
 github.com/git-pkgs/managers v0.12.0/go.mod h1:gWk/V63R12skgcTmVsYgED/kxlk2MERS2iWMYKBrJeM=
-github.com/git-pkgs/purl v0.1.20 h1:a4qzvUy5mBZ2GGjOQNW2h/ocFqjTjOiTDMv2ONtivmM=
-github.com/git-pkgs/purl v0.1.20/go.mod h1:hthV5mp+Q67HpQ9+LnRLLmsReu5ooyQ5EaJsCGrA8yE=
-github.com/git-pkgs/vers v0.6.0 h1:droJw8+oSyl8/UoDj/96B9ZPggmxJDTl/JeixzfKzSc=
-github.com/git-pkgs/vers v0.6.0/go.mod h1:biTbSQK1qdbrsxDEKnqe3Jzclxz8vW6uDcwKjfUGcOo=
+github.com/git-pkgs/purl v0.1.21 h1:PDZUX43lxIiXPn2eHcsNiiiwQo+HajntZ/4TwSvCGlw=
+github.com/git-pkgs/purl v0.1.21/go.mod h1:4dOmris48ehjiKmWBqSmMHguUQht48BLeXW+hQUnuj0=
+github.com/git-pkgs/vers v0.7.1 h1:23VceCbOjQKib0jhbfNRqL3YqkBPiUwdkQNhJoZgnsU=
+github.com/git-pkgs/vers v0.7.1/go.mod h1:ofLiBpPNkQmC0LB1k0zmN1gCv7Hi3MiZx8WtmWZ4A9A=
 github.com/package-url/packageurl-go v0.1.7 h1:iFWg6tzAjLA6F/qX3M5nZaiMHJgc+p2zxVyr/fY+sZY=
 github.com/package-url/packageurl-go v0.1.7/go.mod h1:nKAWB8E6uk1MHqiS/lQb9pYBGH2+mdJ2PJc2s50dQY0=
 go.yaml.in/yaml/v3 v3.0.5 h1:N6y/pJk8buWs9NY5ERU2HSMfm+IuD/OtfdAnq6kESPw=
