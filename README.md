@@ -58,6 +58,13 @@ Each `Dep` includes the ecosystem-native package name, resolved version, a PURL 
 | conan | conan | Custom |
 | deno | deno | JSON flat |
 | helm | helm | Tabular |
+| apm | apm | Lockfile graph |
+
+## Directory parsers
+
+Some managers record their resolved graph in a lockfile rather than in command output. `ParseDir(manager, dir)` reads those files from a project directory.
+
+APM reads `apm.lock.yaml`, or the legacy `apm.lock` when the current file is absent, without running `apm` or reading `apm_modules/`. Package identities come from the APM parser in [manifests](https://github.com/git-pkgs/manifests), so Git dependencies keep their commit and repository subpath, while local and registry sources have no PURL. Edges come from each entry's `depth` and `resolved_by`. As in APM's own `apm deps tree`, a parent is the single entry at the previous depth whose lock key or `repo_url` matches `resolved_by`. When several entries match, such as two subpackages of one repository, `ParseDir` returns an ambiguous-parent error instead of picking one. Missing parents and duplicate entries are errors too.
 
 ## License
 
