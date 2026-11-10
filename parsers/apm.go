@@ -123,26 +123,30 @@ func apmNodes(entries []apmLockEntry) []*apmNode {
 // apmParent finds the single previous-depth entry named by resolved_by, as APM does.
 func apmParent(nodes []*apmNode, child *apmNode) (*apmNode, error) {
 	ref := child.entry.ResolvedBy
-	for _, match := range []func(*apmNode) bool{
-		func(n *apmNode) bool { return n.key == ref },
-		func(n *apmNode) bool { return n.entry.RepoURL == ref },
-	} {
-		var candidates []*apmNode
-		for _, n := range nodes {
-			if n.depth == child.depth-1 && match(n) {
-				candidates = append(candidates, n)
-			}
-		}
-		switch len(candidates) {
-		case 0:
-			continue
-		case 1:
-			return candidates[0], nil
-		default:
-			return nil, fmt.Errorf("%w %q for %s: %d entries at depth %d", ErrAPMAmbiguousParent, ref, child.key, len(candidates), child.depth-1)
+	// A bare repo_url can also name its virtual subpackages, so only a fuller key is exact.
+	explicit := apmCandidates(nodes, child, func(n *apmNode) bool { return n.key == ref && n.entry.RepoURL != ref })
+	if len(explicit) == 1 {
+		return explicit[0], nil
+	}
+	candidates := apmCandidates(nodes, child, func(n *apmNode) bool { return n.key == ref || n.entry.RepoURL == ref })
+	switch len(candidates) {
+	case 0:
+		return nil, fmt.Errorf("%w: %s at depth %d has resolved_by %q", ErrAPMMissingParent, child.key, child.depth, ref)
+	case 1:
+		return candidates[0], nil
+	default:
+		return nil, fmt.Errorf("%w %q for %s: %d entries at depth %d", ErrAPMAmbiguousParent, ref, child.key, len(candidates), child.depth-1)
+	}
+}
+
+func apmCandidates(nodes []*apmNode, child *apmNode, match func(*apmNode) bool) []*apmNode {
+	var candidates []*apmNode
+	for _, n := range nodes {
+		if n.depth == child.depth-1 && match(n) {
+			candidates = append(candidates, n)
 		}
 	}
-	return nil, fmt.Errorf("%w: %s at depth %d has resolved_by %q", ErrAPMMissingParent, child.key, child.depth, ref)
+	return candidates
 }
 
 // apmLockKey mirrors APM's lockfile identity key.

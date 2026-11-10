@@ -134,6 +134,29 @@ func TestAPMParentByHostQualifiedKey(t *testing.T) {
 	}
 }
 
+func TestAPMParentByVirtualKey(t *testing.T) {
+	result, err := resolve.ParseDir("apm", writeAPMLockfile(t, "apm.lock.yaml", `dependencies:
+  - repo_url: acme/skills
+    resolved_commit: `+apmCommit+`
+  - repo_url: acme/skills
+    virtual_path: review
+    is_virtual: true
+    resolved_commit: `+apmCommit+`
+  - repo_url: acme/shared
+    resolved_commit: `+apmCommit+`
+    depth: 2
+    resolved_by: acme/skills/review
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	review := findDep(result.Direct, "github.com/acme/skills/review")
+	whole := findDep(result.Direct, "github.com/acme/skills")
+	if review == nil || findDep(review.Deps, "github.com/acme/shared") == nil || len(whole.Deps) != 0 {
+		t.Errorf("direct = %+v, want acme/shared under the review subpackage only", result.Direct)
+	}
+}
+
 func TestAPMGraphErrors(t *testing.T) {
 	commit := "    resolved_commit: " + apmCommit + "\n"
 	tests := []struct {
@@ -143,6 +166,11 @@ func TestAPMGraphErrors(t *testing.T) {
 		{"ambiguous parent", "dependencies:\n" +
 			"  - repo_url: acme/skills\n    virtual_path: review\n    is_virtual: true\n" + commit +
 			"  - repo_url: acme/skills\n    virtual_path: deploy\n    is_virtual: true\n" + commit +
+			"  - repo_url: acme/shared\n" + commit + "    depth: 2\n    resolved_by: acme/skills\n",
+			parsers.ErrAPMAmbiguousParent},
+		{"repo_url shared by package and subpackage", "dependencies:\n" +
+			"  - repo_url: acme/skills\n" + commit +
+			"  - repo_url: acme/skills\n    virtual_path: review\n    is_virtual: true\n" + commit +
 			"  - repo_url: acme/shared\n" + commit + "    depth: 2\n    resolved_by: acme/skills\n",
 			parsers.ErrAPMAmbiguousParent},
 		{"missing parent", "dependencies:\n" +

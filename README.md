@@ -26,7 +26,7 @@ result, err := resolve.Parse("npm", output)
 // result.Direct    == []*Dep{ {PURL: "pkg:npm/express@4.18.2", Name: "express", Version: "4.18.2", Deps: [...]}, ... }
 ```
 
-`Parse` is the only entry point. It dispatches to the correct parser based on the manager name and returns `ErrUnsupportedManager` for unknown managers.
+`Parse` and `ParseDir` are the entry points: `Parse` reads command output and `ParseDir` reads files from a project directory (see [Directory parsers](#directory-parsers)). Each dispatches to the correct parser based on the manager name and returns `ErrUnsupportedManager` for unknown managers.
 
 Each `Dep` includes the ecosystem-native package name, resolved version, a PURL string, and a `Deps` slice for transitive dependencies. `Deps` is nil for managers that only produce flat lists (pip, conda, bundler, helm, etc.) and non-nil for managers that provide tree structure.
 
