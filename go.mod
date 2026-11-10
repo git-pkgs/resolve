@@ -4,7 +4,7 @@ go 1.26.0
 
 toolchain go1.26.7
 
-require github.com/git-pkgs/purl v0.1.24
+require github.com/git-pkgs/purl v0.2.1
 
 require (
 	github.com/package-url/packageurl-go v0.1.7 // indirect
