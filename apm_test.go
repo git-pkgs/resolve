@@ -58,22 +58,12 @@ func TestAPM(t *testing.T) {
 	// Transitive chain resolved by repo_url, across hosts.
 	baseline := findDep(result.Direct, "github.com/acme-corp/security-baseline")
 	prompts := findDep(baseline.Deps, "github.com/acme-corp/common-prompts")
-	if prompts == nil || len(baseline.Deps) != 1 {
+	if prompts == nil || findDep(baseline.Deps, "github.com/composiohq/design-tokens") == nil || len(baseline.Deps) != 2 {
 		t.Fatalf("security-baseline deps = %+v", baseline.Deps)
 	}
 	style := findDep(prompts.Deps, "gitlab.com/team/style-guide")
 	if style == nil || style.PURL != "pkg:git/gitlab.com/team/style-guide@0f1e2d3c4b5a69788796a5b4c3d2e1f0a9b8c7d6" {
 		t.Errorf("style-guide = %+v", style)
-	}
-
-	// A parent named by its full lock key picks one subpackage, not its sibling.
-	canvas := findDep(result.Direct, "github.com/composiohq/awesome-claude-skills/canvas-design")
-	if findDep(canvas.Deps, "github.com/composiohq/design-tokens") == nil {
-		t.Errorf("canvas-design deps = %+v, want design-tokens", canvas.Deps)
-	}
-	brand := findDep(result.Direct, "github.com/composiohq/awesome-claude-skills/brand-guidelines")
-	if len(brand.Deps) != 0 {
-		t.Errorf("brand-guidelines deps = %+v, want none", brand.Deps)
 	}
 
 	for _, dep := range result.Direct {
@@ -115,7 +105,7 @@ func TestAPMPrefersCurrentLockfile(t *testing.T) {
 	}
 }
 
-func TestAPMParentByHostQualifiedKey(t *testing.T) {
+func TestAPMParentOnOtherHost(t *testing.T) {
 	result, err := resolve.ParseDir("apm", writeAPMLockfile(t, "apm.lock.yaml", `dependencies:
   - repo_url: team/rules
     host: gitlab.example.com
@@ -124,7 +114,7 @@ func TestAPMParentByHostQualifiedKey(t *testing.T) {
     host: gitlab.example.com
     resolved_commit: `+apmCommit+`
     depth: 2
-    resolved_by: gitlab.example.com/team/rules
+    resolved_by: team/rules
 `))
 	if err != nil {
 		t.Fatal(err)
@@ -134,6 +124,7 @@ func TestAPMParentByHostQualifiedKey(t *testing.T) {
 	}
 }
 
+// Full keys are what replacement lockfiles write; v1 and v2 use bare repo_urls.
 func TestAPMParentByVirtualKey(t *testing.T) {
 	result, err := resolve.ParseDir("apm", writeAPMLockfile(t, "apm.lock.yaml", `dependencies:
   - repo_url: acme/skills
@@ -154,6 +145,40 @@ func TestAPMParentByVirtualKey(t *testing.T) {
 	whole := findDep(result.Direct, "github.com/acme/skills")
 	if review == nil || findDep(review.Deps, "github.com/acme/shared") == nil || len(whole.Deps) != 0 {
 		t.Errorf("direct = %+v, want acme/shared under the review subpackage only", result.Direct)
+	}
+}
+
+func TestAPMAnchoredLocalPaths(t *testing.T) {
+	result, err := resolve.ParseDir("apm", writeAPMLockfile(t, "apm.lock.yaml", `dependencies:
+  - repo_url: _local/a
+    source: local
+    local_path: ./packages/a
+  - repo_url: _local/b
+    source: local
+    local_path: ./tools/b
+  - repo_url: _local/sibling
+    source: local
+    local_path: ../sibling
+    anchored_local_path: packages/sibling
+    depth: 2
+    resolved_by: _local/a
+  - repo_url: _local/sibling
+    source: local
+    local_path: ../sibling
+    anchored_local_path: tools/sibling
+    depth: 2
+    resolved_by: _local/b
+`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Direct) != 2 {
+		t.Fatalf("direct = %+v, want two local parents", result.Direct)
+	}
+	for _, parent := range result.Direct {
+		if len(parent.Deps) != 1 || parent.Deps[0].Name != "../sibling" {
+			t.Errorf("%s deps = %+v, want one ../sibling", parent.Name, parent.Deps)
+		}
 	}
 }
 

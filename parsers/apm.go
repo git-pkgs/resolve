@@ -31,6 +31,7 @@ type apmLockEntry struct {
 	Host           string `yaml:"host"`
 	Source         string `yaml:"source"`
 	LocalPath      string `yaml:"local_path"`
+	AnchoredLocal  string `yaml:"anchored_local_path"`
 	IsVirtual      bool   `yaml:"is_virtual"`
 	VirtualPath    string `yaml:"virtual_path"`
 	RegistryPrefix string `yaml:"registry_prefix"`
@@ -123,7 +124,7 @@ func apmNodes(entries []apmLockEntry) []*apmNode {
 // apmParent finds the single previous-depth entry named by resolved_by, as APM does.
 func apmParent(nodes []*apmNode, child *apmNode) (*apmNode, error) {
 	ref := child.entry.ResolvedBy
-	// A bare repo_url can also name its virtual subpackages, so only a fuller key is exact.
+	// APM writes bare repo_urls for v1 and v2; a fuller key is exact when one appears.
 	explicit := apmCandidates(nodes, child, func(n *apmNode) bool { return n.key == ref && n.entry.RepoURL != ref })
 	if len(explicit) == 1 {
 		return explicit[0], nil
@@ -152,6 +153,9 @@ func apmCandidates(nodes []*apmNode, child *apmNode, match func(*apmNode) bool) 
 // apmLockKey mirrors APM's lockfile identity key.
 func apmLockKey(entry apmLockEntry) string {
 	if entry.Source == "local" && entry.LocalPath != "" {
+		if entry.AnchoredLocal != "" {
+			return "local:" + entry.AnchoredLocal
+		}
 		return entry.LocalPath
 	}
 	host := strings.ToLower(strings.TrimSpace(entry.Host))

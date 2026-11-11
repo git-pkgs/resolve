@@ -35,7 +35,7 @@ dependencies:
   - repo_url: composiohq/design-tokens
     resolved_commit: 1234567890abcdef1234567890abcdef12345678
     depth: 2
-    resolved_by: composiohq/awesome-claude-skills/canvas-design
+    resolved_by: acme-corp/security-baseline
   - repo_url: acme/toolkit
     source: registry
     version: "2.3.1"
