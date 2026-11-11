@@ -43,6 +43,7 @@ type apmLockEntry struct {
 type apmNode struct {
 	entry apmLockEntry
 	depth int
+	repo  string
 	key   string
 	dep   *resolve.Dep
 }
@@ -92,6 +93,7 @@ func parseAPMDir(dir string) ([]*resolve.Dep, error) {
 	return roots, nil
 }
 
+// readAPMLockfile returns apm.lock.yaml, or apm.lock when it is absent.
 func readAPMLockfile(dir string) (string, []byte, error) {
 	for _, name := range []string{"apm.lock.yaml", "apm.lock"} {
 		content, err := os.ReadFile(filepath.Join(dir, name))
@@ -116,7 +118,8 @@ func apmNodes(entries []apmLockEntry) []*apmNode {
 		if entry.RepoURL == "<self>" || depth == 0 {
 			continue
 		}
-		nodes = append(nodes, &apmNode{entry: entry, depth: depth, key: apmLockKey(entry)})
+		repo := apmRepo(entry)
+		nodes = append(nodes, &apmNode{entry: entry, depth: depth, repo: repo, key: apmLockKey(entry, repo)})
 	}
 	return nodes
 }
@@ -125,11 +128,11 @@ func apmNodes(entries []apmLockEntry) []*apmNode {
 func apmParent(nodes []*apmNode, child *apmNode) (*apmNode, error) {
 	ref := child.entry.ResolvedBy
 	// APM writes bare repo_urls for v1 and v2; a fuller key is exact when one appears.
-	explicit := apmCandidates(nodes, child, func(n *apmNode) bool { return n.key == ref && n.entry.RepoURL != ref })
+	explicit := apmCandidates(nodes, child, func(n *apmNode) bool { return n.key == ref && n.repo != ref })
 	if len(explicit) == 1 {
 		return explicit[0], nil
 	}
-	candidates := apmCandidates(nodes, child, func(n *apmNode) bool { return n.key == ref || n.entry.RepoURL == ref })
+	candidates := apmCandidates(nodes, child, func(n *apmNode) bool { return n.key == ref || n.repo == ref })
 	switch len(candidates) {
 	case 0:
 		return nil, fmt.Errorf("%w: %s at depth %d has resolved_by %q", ErrAPMMissingParent, child.key, child.depth, ref)
@@ -140,6 +143,7 @@ func apmParent(nodes []*apmNode, child *apmNode) (*apmNode, error) {
 	}
 }
 
+// apmCandidates returns the previous-depth entries that match.
 func apmCandidates(nodes []*apmNode, child *apmNode, match func(*apmNode) bool) []*apmNode {
 	var candidates []*apmNode
 	for _, n := range nodes {
@@ -150,8 +154,29 @@ func apmCandidates(nodes []*apmNode, child *apmNode, match func(*apmNode) bool) 
 	return candidates
 }
 
+// apmRepo returns repo_url case-folded as APM loads it.
+func apmRepo(entry apmLockEntry) string {
+	if entry.Source == "local" {
+		return entry.RepoURL
+	}
+	if entry.Source == "registry" || entry.RegistryPrefix != "" {
+		return strings.ToLower(entry.RepoURL)
+	}
+	host := strings.ToLower(strings.TrimSpace(entry.Host))
+	if (host == "" || host == "github.com" || strings.HasSuffix(host, ".ghe.com")) && !apmLocator(entry.RepoURL) {
+		return strings.ToLower(entry.RepoURL)
+	}
+	return entry.RepoURL
+}
+
+// apmLocator reports a URL or host-qualified repo_url, which APM does not write.
+func apmLocator(repo string) bool {
+	first, rest, _ := strings.Cut(repo, "/")
+	return strings.Contains(repo, ":") || (strings.Contains(first, ".") && strings.Contains(rest, "/"))
+}
+
 // apmLockKey mirrors APM's lockfile identity key.
-func apmLockKey(entry apmLockEntry) string {
+func apmLockKey(entry apmLockEntry, repo string) string {
 	if entry.Source == "local" && entry.LocalPath != "" {
 		if entry.AnchoredLocal != "" {
 			return "local:" + entry.AnchoredLocal
@@ -159,10 +184,7 @@ func apmLockKey(entry apmLockEntry) string {
 		return entry.LocalPath
 	}
 	host := strings.ToLower(strings.TrimSpace(entry.Host))
-	key := entry.RepoURL
-	if entry.Source == "registry" || entry.RegistryPrefix != "" || host == "" || host == "github.com" || strings.HasSuffix(host, ".ghe.com") {
-		key = strings.ToLower(key)
-	}
+	key := repo
 	if entry.IsVirtual && entry.VirtualPath != "" {
 		key += "/" + entry.VirtualPath
 	}

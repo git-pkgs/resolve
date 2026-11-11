@@ -182,6 +182,21 @@ func TestAPMAnchoredLocalPaths(t *testing.T) {
 	}
 }
 
+func TestAPMLocatorKeepsPathCase(t *testing.T) {
+	result, err := resolve.ParseDir("apm", writeAPMLockfile(t, "apm.lock.yaml", `dependencies:
+  - repo_url: https://gitlab.com/Team/Rules
+    resolved_commit: `+apmCommit+`
+  - repo_url: https://gitlab.com/team/rules
+    resolved_commit: `+apmCommit+`
+`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if findDep(result.Direct, "gitlab.com/Team/Rules") == nil || findDep(result.Direct, "gitlab.com/team/rules") == nil {
+		t.Errorf("direct = %+v, want both GitLab paths", result.Direct)
+	}
+}
+
 func TestAPMGraphErrors(t *testing.T) {
 	commit := "    resolved_commit: " + apmCommit + "\n"
 	tests := []struct {
@@ -196,6 +211,11 @@ func TestAPMGraphErrors(t *testing.T) {
 		{"repo_url shared by package and subpackage", "dependencies:\n" +
 			"  - repo_url: acme/skills\n" + commit +
 			"  - repo_url: acme/skills\n    virtual_path: review\n    is_virtual: true\n" + commit +
+			"  - repo_url: acme/shared\n" + commit + "    depth: 2\n    resolved_by: acme/skills\n",
+			parsers.ErrAPMAmbiguousParent},
+		{"case-folded repo_url on two hosts", "dependencies:\n" +
+			"  - repo_url: ACME/Skills\n" + commit +
+			"  - repo_url: acme/skills\n    host: gitlab.com\n" + commit +
 			"  - repo_url: acme/shared\n" + commit + "    depth: 2\n    resolved_by: acme/skills\n",
 			parsers.ErrAPMAmbiguousParent},
 		{"missing parent", "dependencies:\n" +
