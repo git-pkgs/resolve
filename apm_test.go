@@ -148,6 +148,43 @@ func TestAPMParentByVirtualKey(t *testing.T) {
 	}
 }
 
+// Lockfiles written before microsoft/apm#3370 keep manifest casing in repo_url and resolved_by.
+func TestAPMMixedCaseLegacyParent(t *testing.T) {
+	result, err := resolve.ParseDir("apm", writeAPMLockfile(t, "apm.lock.yaml", `dependencies:
+  - repo_url: ComposioHQ/awesome-claude-skills
+    resolved_commit: `+apmCommit+`
+  - repo_url: acme/shared
+    resolved_commit: `+apmCommit+`
+    depth: 2
+    resolved_by: ComposioHQ/awesome-claude-skills
+`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Direct) != 1 || findDep(result.Direct[0].Deps, "github.com/acme/shared") == nil {
+		t.Errorf("direct = %+v, want acme/shared under awesome-claude-skills", result.Direct)
+	}
+}
+
+func TestAPMMixedCaseVirtualKey(t *testing.T) {
+	lock := `dependencies:
+  - repo_url: Acme/Skills
+    virtual_path: Review
+    is_virtual: true
+    resolved_commit: ` + apmCommit + `
+  - repo_url: acme/shared
+    resolved_commit: ` + apmCommit + `
+    depth: 2
+    resolved_by: `
+	if _, err := resolve.ParseDir("apm", writeAPMLockfile(t, "apm.lock.yaml", lock+"Acme/Skills/Review\n")); err != nil {
+		t.Errorf("mixed-case repository: %v", err)
+	}
+	_, err := resolve.ParseDir("apm", writeAPMLockfile(t, "apm.lock.yaml", lock+"acme/skills/review\n"))
+	if !errors.Is(err, parsers.ErrAPMMissingParent) {
+		t.Errorf("lowercased virtual path: err = %v, want ErrAPMMissingParent", err)
+	}
+}
+
 func TestAPMAnchoredLocalPaths(t *testing.T) {
 	result, err := resolve.ParseDir("apm", writeAPMLockfile(t, "apm.lock.yaml", `dependencies:
   - repo_url: _local/a

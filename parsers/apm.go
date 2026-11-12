@@ -41,11 +41,13 @@ type apmLockEntry struct {
 
 // apmNode is one lockfile entry with its identity and graph position.
 type apmNode struct {
-	entry apmLockEntry
-	depth int
-	repo  string
-	key   string
-	dep   *resolve.Dep
+	entry  apmLockEntry
+	depth  int
+	folded bool   // repository path is case-insensitive
+	repo   string // repo_url as APM loads it
+	host   string // host prefix of key, if any
+	key    string
+	dep    *resolve.Dep
 }
 
 // parseAPMDir builds the graph from manifests' APM identities plus depth and resolved_by.
@@ -118,8 +120,7 @@ func apmNodes(entries []apmLockEntry) []*apmNode {
 		if entry.RepoURL == "<self>" || depth == 0 {
 			continue
 		}
-		repo := apmRepo(entry)
-		nodes = append(nodes, &apmNode{entry: entry, depth: depth, repo: repo, key: apmLockKey(entry, repo)})
+		nodes = append(nodes, newAPMNode(entry, depth))
 	}
 	return nodes
 }
@@ -128,11 +129,11 @@ func apmNodes(entries []apmLockEntry) []*apmNode {
 func apmParent(nodes []*apmNode, child *apmNode) (*apmNode, error) {
 	ref := child.entry.ResolvedBy
 	// APM writes bare repo_urls for v1 and v2; a fuller key is exact when one appears.
-	explicit := apmCandidates(nodes, child, func(n *apmNode) bool { return n.key == ref && n.repo != ref })
+	explicit := apmCandidates(nodes, child, func(n *apmNode) bool { return n.matchesKey(ref) && !n.matchesRepo(ref) })
 	if len(explicit) == 1 {
 		return explicit[0], nil
 	}
-	candidates := apmCandidates(nodes, child, func(n *apmNode) bool { return n.key == ref || n.repo == ref })
+	candidates := apmCandidates(nodes, child, func(n *apmNode) bool { return n.matchesKey(ref) || n.matchesRepo(ref) })
 	switch len(candidates) {
 	case 0:
 		return nil, fmt.Errorf("%w: %s at depth %d has resolved_by %q", ErrAPMMissingParent, child.key, child.depth, ref)
@@ -154,19 +155,39 @@ func apmCandidates(nodes []*apmNode, child *apmNode, match func(*apmNode) bool) 
 	return candidates
 }
 
-// apmRepo returns repo_url case-folded as APM loads it.
-func apmRepo(entry apmLockEntry) string {
+// newAPMNode builds the node and its key as APM's build_dependency_unique_key does.
+func newAPMNode(entry apmLockEntry, depth int) *apmNode {
+	n := &apmNode{entry: entry, depth: depth, folded: apmFolds(entry), repo: entry.RepoURL}
+	if n.folded {
+		n.repo = strings.ToLower(n.repo)
+	}
+	if entry.Source == "local" && entry.LocalPath != "" {
+		n.key = entry.LocalPath
+		if entry.AnchoredLocal != "" {
+			n.key = "local:" + entry.AnchoredLocal
+		}
+		return n
+	}
+	if host := strings.ToLower(strings.TrimSpace(entry.Host)); entry.RegistryPrefix == "" && host != "" && host != "github.com" {
+		n.host = host
+	}
+	n.key = n.repo + n.virtualSuffix()
+	if n.host != "" {
+		n.key = n.host + "/" + n.key
+	}
+	return n
+}
+
+// apmFolds reports whether APM lowercases the entry's repo_url, as it does since microsoft/apm#3370.
+func apmFolds(entry apmLockEntry) bool {
 	if entry.Source == "local" {
-		return entry.RepoURL
+		return false
 	}
 	if entry.Source == "registry" || entry.RegistryPrefix != "" {
-		return strings.ToLower(entry.RepoURL)
+		return true
 	}
 	host := strings.ToLower(strings.TrimSpace(entry.Host))
-	if (host == "" || host == "github.com" || strings.HasSuffix(host, ".ghe.com")) && !apmLocator(entry.RepoURL) {
-		return strings.ToLower(entry.RepoURL)
-	}
-	return entry.RepoURL
+	return (host == "" || host == "github.com" || strings.HasSuffix(host, ".ghe.com")) && !apmLocator(entry.RepoURL)
 }
 
 // apmLocator reports a URL or host-qualified repo_url, which APM does not write.
@@ -175,23 +196,39 @@ func apmLocator(repo string) bool {
 	return strings.Contains(repo, ":") || (strings.Contains(first, ".") && strings.Contains(rest, "/"))
 }
 
-// apmLockKey mirrors APM's lockfile identity key.
-func apmLockKey(entry apmLockEntry, repo string) string {
-	if entry.Source == "local" && entry.LocalPath != "" {
-		if entry.AnchoredLocal != "" {
-			return "local:" + entry.AnchoredLocal
+// virtualSuffix returns "/virtual_path" for a virtual entry.
+func (n *apmNode) virtualSuffix() string {
+	if n.entry.IsVirtual && n.entry.VirtualPath != "" {
+		return "/" + n.entry.VirtualPath
+	}
+	return ""
+}
+
+// matchesRepo compares ref to repo_url, folding ref by the node's case rules.
+func (n *apmNode) matchesRepo(ref string) bool {
+	if n.folded {
+		ref = strings.ToLower(ref)
+	}
+	return ref == n.repo
+}
+
+// matchesKey compares ref to the full key, keeping the virtual path case-sensitive.
+func (n *apmNode) matchesKey(ref string) bool {
+	if n.entry.Source == "local" && n.entry.LocalPath != "" {
+		return ref == n.key
+	}
+	rest, ok := strings.CutSuffix(ref, n.virtualSuffix())
+	if !ok {
+		return false
+	}
+	if n.host != "" {
+		hostPart, path, ok := strings.Cut(rest, "/")
+		if !ok || !strings.EqualFold(hostPart, n.host) {
+			return false
 		}
-		return entry.LocalPath
+		rest = path
 	}
-	host := strings.ToLower(strings.TrimSpace(entry.Host))
-	key := repo
-	if entry.IsVirtual && entry.VirtualPath != "" {
-		key += "/" + entry.VirtualPath
-	}
-	if entry.RegistryPrefix == "" && host != "" && host != "github.com" {
-		key = host + "/" + key
-	}
-	return key
+	return n.matchesRepo(rest)
 }
 
 func init() {
