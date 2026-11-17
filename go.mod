@@ -3,7 +3,7 @@ module github.com/git-pkgs/resolve
 go 1.27
 
 require (
-	github.com/git-pkgs/managers v0.12.0
+	github.com/git-pkgs/managers v0.13.0
 	github.com/git-pkgs/manifests v0.14.0
 	github.com/git-pkgs/purl v0.2.1
 	go.yaml.in/yaml/v3 v3.0.6
